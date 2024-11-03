@@ -32,7 +32,7 @@ class TfType(Protocol):
         """Return the TF type pattern"""
 
 
-class Integer(TfType):
+class Number(TfType):
     def encode(self, value: Any) -> Any:
         return value  # native
 

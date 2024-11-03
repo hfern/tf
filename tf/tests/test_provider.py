@@ -70,10 +70,10 @@ class ExampleMathResource(p.Resource):
         return schema.Schema(
             version=2,
             attributes=[
-                schema.Attribute("a", types.Integer(), required=True),
-                schema.Attribute("b", types.Integer(), required=True, requires_replace=True),
-                schema.Attribute("sum", types.Integer(), computed=True),
-                schema.Attribute("product", types.Integer(), computed=True),
+                schema.Attribute("a", types.Number(), required=True),
+                schema.Attribute("b", types.Number(), required=True, requires_replace=True),
+                schema.Attribute("sum", types.Number(), computed=True),
+                schema.Attribute("product", types.Number(), computed=True),
             ],
         )
 
@@ -185,7 +185,7 @@ class FavoriteNumberDataSource(p.DataSource):
     def get_schema(cls) -> schema.Schema:
         return schema.Schema(
             attributes=[
-                schema.Attribute("number", types.Integer(), computed=True),
+                schema.Attribute("number", types.Number(), computed=True),
             ],
         )
 
@@ -260,7 +260,7 @@ class HasSetBlockResource(ExampleMathResource):
                     schema.Block(
                         [
                             schema.Attribute("name", types.String(), required=True),
-                            schema.Attribute("value", types.Integer(), required=True),
+                            schema.Attribute("value", types.Number(), required=True),
                         ]
                     ),
                 ),
@@ -307,11 +307,11 @@ class DefaultAttributeResource(ExampleMathResource):
         return schema.Schema(
             version=2,
             attributes=[
-                schema.Attribute("a", types.Integer(), required=True),
-                schema.Attribute("b", types.Integer(), required=True, requires_replace=True),
-                schema.Attribute("c_with_default", types.Integer(), computed=True, default=9001),
-                schema.Attribute("sum", types.Integer(), computed=True),
-                schema.Attribute("product", types.Integer(), computed=True),
+                schema.Attribute("a", types.Number(), required=True),
+                schema.Attribute("b", types.Number(), required=True, requires_replace=True),
+                schema.Attribute("c_with_default", types.Number(), computed=True, default=9001),
+                schema.Attribute("sum", types.Number(), computed=True),
+                schema.Attribute("product", types.Number(), computed=True),
             ],
         )
 
@@ -326,11 +326,11 @@ class OptionalAttributeWithoutDefaultResource(ExampleMathResource):
         return schema.Schema(
             version=2,
             attributes=[
-                schema.Attribute("a", types.Integer(), required=True),
-                schema.Attribute("b", types.Integer(), required=True, requires_replace=True),
-                schema.Attribute("c_without_default", types.Integer(), optional=True),
-                schema.Attribute("sum", types.Integer(), computed=True),
-                schema.Attribute("product", types.Integer(), computed=True),
+                schema.Attribute("a", types.Number(), required=True),
+                schema.Attribute("b", types.Number(), required=True, requires_replace=True),
+                schema.Attribute("c_without_default", types.Number(), optional=True),
+                schema.Attribute("sum", types.Number(), computed=True),
+                schema.Attribute("product", types.Number(), computed=True),
             ],
         )
 

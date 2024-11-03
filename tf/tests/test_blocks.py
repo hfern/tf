@@ -13,7 +13,7 @@ class SetNestedBlockTest(TestCase):
             Block(
                 [
                     Attribute("name", t.String()),
-                    Attribute("age", t.Integer()),
+                    Attribute("age", t.Number()),
                 ]
             ),
         )
@@ -44,7 +44,7 @@ class SetNestedBlockTest(TestCase):
             Block(
                 [
                     Attribute("name", t.String()),
-                    Attribute("age", t.Integer()),
+                    Attribute("age", t.Number()),
                 ]
             ),
         )

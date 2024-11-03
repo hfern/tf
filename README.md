@@ -126,12 +126,12 @@ in the State dictionaries.
 
 This framework handles the conversion to and from TF types and semantic equivalents.
 
-| Python Type      | TF Type  | Framework Type        | Notes                                                     |
-|------------------|----------|-----------------------|-----------------------------------------------------------|
-| `str`            | `string` | `String`              |                                                           |
-| `int`, `float`   | `number` | `Integer`             |                                                           |
-| `bool`           | `bool`   | `Bool`                |                                                           |
-| `Dict[str, Any]` | `string` | `NormalizedJson`      | Key order and whitespace are ignored for diff comparison. |
+| Python Type      | TF Type  | Framework Type    | Notes                                                     |
+|------------------|----------|-------------------|-----------------------------------------------------------|
+| `str`            | `string` | `String`          |                                                           |
+| `int`, `float`   | `number` | `Number`          |                                                           |
+| `bool`           | `bool`   | `Bool`            |                                                           |
+| `Dict[str, Any]` | `string` | `NormalizedJson`  | Key order and whitespace are ignored for diff comparison. |
 
 For `NormalizedJson` in particular, the framework will pass in `dict` and expect `dict` back.
 That being said, if you are heavily editing a prettified JSON file and using that as

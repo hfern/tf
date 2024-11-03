@@ -19,7 +19,7 @@ class TypesTest(TestCase):
         self.assertIs(deepcopy(Unknown), Unknown)
 
     def test_integer_encoding(self):
-        integer = types.Integer()
+        integer = types.Number()
 
         self.assertEqual(integer.encode(123), 123)
         self.assertEqual(integer.decode(123), 123)
@@ -51,7 +51,7 @@ class TypesTest(TestCase):
         )
 
     def test_list_encode(self):
-        list_type = types.List(types.Integer())
+        list_type = types.List(types.Number())
 
         self.assertEqual(list_type.encode(None), None)
         self.assertEqual(list_type.decode(None), None)
@@ -64,7 +64,7 @@ class TypesTest(TestCase):
 
     def test_list_type_encoding(self):
         table = (
-            (types.List(types.Integer()), "list of int", b'["list","number"]'),
+            (types.List(types.Number()), "list of int", b'["list","number"]'),
             (types.List(types.String()), "list of string", b'["list","string"]'),
             (types.List(types.Bool()), "list of bool", b'["list","bool"]'),
             (types.List(types.Set(types.Bool())), "list of set of bool", b'["list",["set","bool"]]'),
@@ -75,7 +75,7 @@ class TypesTest(TestCase):
                 self.assertEqual(set_type.tf_type(), expected)
 
     def test_list_equality(self):
-        list_type = types.List(types.Integer())
+        list_type = types.List(types.Number())
 
         self.assertTrue(list_type.semantically_equal([1, 2, 3], [1, 2, 3]))
         self.assertFalse(list_type.semantically_equal([1, 2, 3], [1, 2, 4]))
@@ -83,7 +83,7 @@ class TypesTest(TestCase):
 
     def test_set_type_encoding(self):
         table = (
-            (types.Set(types.Integer()), "set of int", b'["set","number"]'),
+            (types.Set(types.Number()), "set of int", b'["set","number"]'),
             (types.Set(types.String()), "set of string", b'["set","string"]'),
             (types.Set(types.Bool()), "set of bool", b'["set","bool"]'),
             (types.Set(types.Set(types.Bool())), "set of set of bool", b'["set",["set","bool"]]'),
@@ -94,7 +94,7 @@ class TypesTest(TestCase):
                 self.assertEqual(set_type.tf_type(), expected)
 
     def test_set_semantic_equality(self):
-        set_type = types.Set(types.Integer())
+        set_type = types.Set(types.Number())
 
         self.assertTrue(set_type.semantically_equal([1, 2, 3], [1, 2, 3]))
         self.assertFalse(set_type.semantically_equal([1, 2, 3], [1, 2, 4]))
