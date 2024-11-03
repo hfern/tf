@@ -36,3 +36,7 @@ class CheckAttributeTest(TestCase):
     def test_computed_and_required(self):
         diags = self.check_error_case(Attribute("aname", String(), computed=True, required=True))
         self.assertIn("Computed cannot be set if required", str(diags))
+
+    def test_computed_and_default(self):
+        diags = self.check_error_case(Attribute("aname", String(), optional=True, default="default"))
+        self.assertIn("You cannot set a default value if computed is not also set", str(diags))

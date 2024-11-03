@@ -287,12 +287,13 @@ class ProviderServicer(rpc.ProviderServicer):
                     new_state[k] = v
                 else:
                     # Attribute
-                    a = attrs[k]
-
-                    if v is None:
-                        new_state[k] = Unknown if a.computed else None
-                    else:
+                    if v is not None:
                         new_state[k] = v
+                    elif not attrs[k].computed:
+                        # TF requires non-computed unspecified fields to be set to None as their planned value
+                        new_state[k] = None
+                    else:
+                        new_state[k] = attrs[k].default
 
             new_state_encoded = _encode_state(attrs, blocks, new_state, proposed_enc)
             return pb.PlanResourceChange.Response(planned_state=new_state_encoded, diagnostics=diags.to_pb())

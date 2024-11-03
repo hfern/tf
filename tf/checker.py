@@ -1,6 +1,7 @@
 from typing import Sequence
 
 from tf.schema import Attribute
+from tf.types import Unknown
 from tf.utils import Diagnostics
 
 
@@ -34,4 +35,5 @@ def check_attributes(diags: Diagnostics, attributes: Sequence[Attribute]):
         if computed and required:
             diags.add_error("Computed cannot be set if required", **path)
 
-        # TODO: Can't have computed and a default
+        if not computed and a.default is not Unknown:
+            diags.add_error("You cannot set a default value if computed is not also set", **path)

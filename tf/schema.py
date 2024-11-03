@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Any, Optional, cast
 
 from tf.gen import tfplugin_pb2 as pb
-from tf.types import TfType
+from tf.types import TfType, Unknown
 
 
 class TextFormat(Enum):
@@ -34,6 +34,8 @@ class Attribute:
         # Some fields are immutable and changing them requires a new resource to be created
         requires_replace: Optional[bool] = None,
         read_only: Optional[bool] = False,  # TODO(Hunter): Actually enforce this in CREATE/UPDATE
+        # If computed and not set by the caller, what should the default value be?
+        default: Any = Unknown,
     ):
         self.name = name
         self.type = type
@@ -45,6 +47,7 @@ class Attribute:
         self.description_kind = description_kind
         self.deprecated = deprecated
         self.requires_replace = requires_replace
+        self.default = default
 
     def to_pb(self) -> pb.Schema.Attribute:
         can_be_null = dict(
