@@ -39,3 +39,6 @@ test-pyre:
 
 test: test-format test-python test-pyre
 	$(HIDE)echo "All tests passed"
+
+build:
+	$(HIDE)$(POETRY) build

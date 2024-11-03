@@ -38,3 +38,6 @@ jobs:
     - name: Check Types
       run: |
         make test-pyre
+    - name: Test Build
+      run: |
+        poetry build

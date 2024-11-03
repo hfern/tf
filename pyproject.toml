@@ -24,7 +24,7 @@ classifiers = [
 [tool.poetry.dependencies]
 python = "^3.11"
 msgpack = "^1.1.0"
-cryptography = "^43.0.3"
+cryptography = ">43"
 grpcio = "^1.67.1"
 
 
