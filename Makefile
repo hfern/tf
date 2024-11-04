@@ -42,3 +42,11 @@ test: test-format test-python test-pyre
 
 build:
 	$(HIDE)$(POETRY) build
+
+doc:
+	$(HIDE)$(POETRY) run sphinx-build -M html ./docs ./docs/_build -W
+
+
+clean:
+	$(HIDE)rm -rf ./dist
+	$(HIDE)rm -rf ./docs/_build

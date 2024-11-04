@@ -58,7 +58,7 @@ must be named in the form of `terraform-provider-<providername>`.
 This means that you must your [entrypoint](https://setuptools.pypa.io/en/latest/userguide/entry_point.html)
 similarly.
 
-```toml filename="pyproject.toml"
+```toml
 [project.scripts]
 terraform-provider-myprovider = "mypackage.main:main"
 ```
@@ -70,7 +70,7 @@ In order to get TF to use your provider, you must tell TF to run your provider f
 This is done by editing the `~/.terraformrc` or `~/.tofurc` file,
 and setting the path to your virtual environment's `bin` directory (which contains the `terraform-provider-myprovider` script).
 
-```hcl filename="~/.terraformrc"
+```hcl
 provider_installation {
   dev_overrides {
       "tf.mydomain.com/mypackage" = "/path/to/your/.venv/bin"
@@ -82,9 +82,9 @@ provider_installation {
 
 ### Using the Provider
 
-Now you can use your provider in Terraform by specifying it in the `provider` block.
+Now you can use your provider in Terraform by specifying it in the `provider` block in your `main.tf`.
 
-```hcl filename="main.tf"
+```hcl
 terraform {
   required_providers {
     myprovider = { source  = "tf.mydomain.com/mypackage"}
@@ -107,15 +107,15 @@ Attributes can be a combination of `required`, `computed`, and `optional`.
 The values of these flags determine how the attribute is treated by TF and the framework.
 
 | Required | Computed | Optional | Behavior                                                                                 |
-|:--------:|:--------:|:--------:|------------------------------------------------------------------------------------------|
+|----------|----------|----------|------------------------------------------------------------------------------------------|
 |          |          |          | _Invalid combination._ You must have at least one flag set.                              |
-|          |          |    X     | Fields may be set. TODO: Have default values.                                            |
-|          |    X     |          | Computed fields are read-only, value is set by the server and cannot be set by the user. |
-|          |    X     |    X     | Field may be set. If not, uses value from server.                                        |
-|    X     |          |          | Required fields must be present in the configuration.                                    |                                                             |
-|    X     |          |    X     | _Invalid combination._                                                                   |
-|    X     |    X     |          | _Invalid combination._                                                                   |
-|    X     |    X     |    X     | _Invalid combination._                                                                   |
+|          |          | X        | Fields may be set. TODO: Have default values.                                            |
+|          | X        |          | Computed fields are read-only, value is set by the server and cannot be set by the user. |
+|          | X        | X        | Field may be set. If not, uses value from server.                                        |
+| X        |          |          | Required fields must be present in the configuration.                                    |
+| X        |          | X        | _Invalid combination._                                                                   |
+| X        | X        |          | _Invalid combination._                                                                   |
+| X        | X        | X        | _Invalid combination._                                                                   |
 
 
 ## Types

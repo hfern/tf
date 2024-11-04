@@ -18,6 +18,22 @@ _desc_format_map = {
 
 
 class Attribute:
+    """
+    An attribute is a single field in a schema.
+
+    :param name: Name of the attribute
+    :param type: Type of the attribute
+    :param description: Description of the attribute
+    :param required: Required?
+    :param optional: Optional?
+    :param computed: Computed?
+    :param sensitive: Sensitive?
+    :param description_kind: Description kind (defaults to Markdown)
+    :param deprecated: Deprecated?
+    :param requires_replace: Should a change of this value require a replace of the resource?
+    :param default: If this value is computed but not set, this will be the default value in the change plan
+    """
+
     def __init__(
         self,
         name: str,
@@ -68,6 +84,28 @@ class Attribute:
 
 
 class Schema:
+    """
+    A schema is a description of the data model for a resource type.
+
+    :param attributes: List of attributes
+    :param version: Version of the schema
+    :param block_types: List of nested block types
+
+    Example::
+
+        from tf.schema import Schema, Attribute
+        from tf.types import Number
+
+        schema = schema.Schema(
+            version=2,
+            attributes=[
+                schema.Attribute("a", types.Number(), required=True),
+                schema.Attribute("b", types.Number(), required=True, requires_replace=True),
+                schema.Attribute("sum", types.Number(), computed=True),
+            ],
+        )
+    """
+
     def __init__(
         self,
         attributes: Optional[list[Attribute]] = None,

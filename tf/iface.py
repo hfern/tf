@@ -5,20 +5,22 @@ from typing import Optional, Protocol, Sequence, Type
 from tf.schema import Attribute, NestedBlock, Schema
 from tf.utils import Diagnostics
 
-"""
-State is the current state of a resource.
-It is a dictionary where field names are mapped to Python values (or None, or Unkown).
-Resource operations are mostly just pushing around, mutating, and returning State.
-"""
-State = dict
 
-"""
-Config is like State, except its used in _configuration validation_ and the values are null when
-they are not bound to a value.
-This is because the configuration is not yet bound to a resource.
-This is merely for validating that set of input parameters or values are correct.
-"""
-Config = dict  # encodes the same by semantically different
+class State(dict):
+    """
+    State is the current state of a resource.
+    It is a dictionary where field names are mapped to Python values (or None, or Unkown).
+    Resource operations are mostly just pushing around, mutating, and returning State.
+    """
+
+
+class Config(dict):
+    """
+    Config is like State, except its used in _configuration validation_ and the values are null when
+    they are not bound to a value.
+    This is because the configuration is not yet bound to a resource.
+    This is merely for validating that set of input parameters or values are correct.
+    """
 
 
 class AbstractResource(Protocol):
@@ -39,7 +41,7 @@ class _Context:
     type_name: str
 
 
-ReadDataContext = _Context
+class ReadDataContext(_Context): ...
 
 
 def _validate_config(
@@ -92,7 +94,22 @@ class DataSource(AbstractResource, Protocol):
 
 
 # Right now all the same but UpdateContext should have a planning/delta fields method
-CreateContext = ReadContext = UpdateContext = DeleteContext = UpgradeContext = ImportContext = _Context
+class CreateContext(_Context): ...
+
+
+class ReadContext(_Context): ...
+
+
+class UpdateContext(_Context): ...
+
+
+class DeleteContext(_Context): ...
+
+
+class UpgradeContext(_Context): ...
+
+
+class ImportContext(_Context): ...
 
 
 @dataclass
@@ -102,13 +119,30 @@ class PlanContext(_Context):
 
 class Resource(AbstractResource, Protocol):
     def validate(self, diags: Diagnostics, type_name: str, config: Config):
-        """Validate the resource configuration"""
+        """
+            Validate the resource configuration
+
+            This is called before any other operation to validate the configuration of the resource.
+            You should run parameter validation here.
+            Generate errors and warnings through the `diags` object.
+
+            :param diags: Diagnostics
+            :param type_name: The type name of the resource
+            :param config: The configuration to validate
+        """
         schema = self.get_schema()
         _validate_config(diags, type_name, config, schema.attributes, schema.block_types)
 
     @abstractmethod
     def create(self, ctx: CreateContext, planned: State) -> Optional[State]:
-        """Create the resource, returning the actual state after creation"""
+        """
+            Create the resource, returning the actual state after creation.
+
+            This is called when a user runs `opentofu apply` and the resource needs to be initially created.
+
+            :param ctx: CreateContext
+            :param planned: The planned state of the resource
+        """
 
     @abstractmethod
     def read(self, ctx: ReadContext, current: State) -> Optional[State]:
@@ -127,7 +161,14 @@ class Resource(AbstractResource, Protocol):
         return planned
 
     def import_(self, ctx: ImportContext, id: str) -> Optional[State]:
-        """Import a resource"""
+        """
+            Import a resource
+
+            This is called when a user runs `opentofu import` and provides a resource ID to import.
+
+            :param ctx: ImportContext
+            :param id: The resource ID to import
+        """
 
     # TODO(Hunter): move
 
