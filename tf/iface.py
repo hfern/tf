@@ -1,26 +1,25 @@
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Optional, Protocol, Sequence, Type
+from typing import Optional, Protocol, Sequence, Type, TypeAlias
 
 from tf.schema import Attribute, NestedBlock, Schema
 from tf.utils import Diagnostics
 
+"""
+State is the current state of a resource.
+It is a dictionary where field names are mapped to Python values (or None, or Unknown).
+Resource operations are mostly just pushing around, mutating, and returning State.
+"""
+State: TypeAlias = dict
 
-class State(dict):
-    """
-    State is the current state of a resource.
-    It is a dictionary where field names are mapped to Python values (or None, or Unkown).
-    Resource operations are mostly just pushing around, mutating, and returning State.
-    """
 
-
-class Config(dict):
-    """
-    Config is like State, except its used in _configuration validation_ and the values are null when
-    they are not bound to a value.
-    This is because the configuration is not yet bound to a resource.
-    This is merely for validating that set of input parameters or values are correct.
-    """
+"""
+Config is like State, except its used in configuration validation and the values are null when
+they are not bound to a value.
+This is because the configuration is not yet bound to a resource.
+This is merely for validating that set of input parameters or values are correct.
+"""
+Config: TypeAlias = dict
 
 
 class AbstractResource(Protocol):
