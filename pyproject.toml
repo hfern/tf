@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "tf"
-version = "1.0.1"
+version = "1.0.2"
 description = "Python Terraform Provider framework"
 authors = ["Hunter Fernandes <hunter@hfernandes.com>"]
 license = "MIT"
@@ -33,6 +33,10 @@ grpcio-tools = "^1.67.1"
 ruff = "^0.7.2"
 coverage = "^7.6.4"
 pyre-check = "^0.9.23"
+sphinx = "^8.1.3"
+sphinx-mdinclude = "^0.6.2"
+sphinx-immaterial = "^0.12.4"
+myst-parser = "^4.0.0"
 
 
 [build-system]

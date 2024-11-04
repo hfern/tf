@@ -33,6 +33,14 @@ class TfType(Protocol):
 
 
 class Number(TfType):
+    """
+    Numbers are numeric values. They can be integers or floats.
+    Maps to Python `int` or `float`.
+
+    Usually this is fine, but if you need to distinguish between the two you
+    must do it in your Resource CRUD implementation.
+    """
+
     def encode(self, value: Any) -> Any:
         return value  # native
 
@@ -44,6 +52,8 @@ class Number(TfType):
 
 
 class String(TfType):
+    """Strings are sequences of characters. Maps to Python `str`."""
+
     def encode(self, value: Any) -> Any:
         return value  # native
 
@@ -55,6 +65,8 @@ class String(TfType):
 
 
 class Bool(TfType):
+    """True or False. Maps to Python `bool`."""
+
     def encode(self, value: Any) -> Any:
         return value  # native
 
@@ -66,7 +78,11 @@ class Bool(TfType):
 
 
 class NormalizedJson(String):
-    """JSON type that doesn't care about the order of keys"""
+    """
+    JSON type that doesn't care about the order of keys.
+
+    Under the hood, this is just a string in the state file.
+    """
 
     # The trick is that we always just sort the keys when
     # encoding so TF always sees the string as exactly the same
@@ -83,7 +99,7 @@ class NormalizedJson(String):
 
 
 class List(TfType):
-    """Lists are ordered collections of homogeneously-typed values."""
+    """Lists are ordered collections of homogeneously-typed values. Maps to Python `list`."""
 
     def __init__(self, element_type: TfType):
         self.element_type = element_type
@@ -109,9 +125,11 @@ class Set(List):
     """
     Sets are collections of homogeneously-typed values.
     Sets are represented as lists in Python because TF Sets can have object values, which Python doesn't like.
+    Maps to Python `list`.
 
-    OK in TF, Bad in Python: set(({"a": 123},))
-    Result: TypeError: unhashable type: 'dict'
+    OK in TF, Bad in Python: `set(({"a": 123},))`
+
+    Result: `TypeError: unhashable type: 'dict'`
     """
 
     def tf_type(self) -> bytes:

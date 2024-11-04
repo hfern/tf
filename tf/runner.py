@@ -39,6 +39,13 @@ class _ShutdownInterceptor(grpc.ServerInterceptor):
 
 
 def run_provider(provider: Provider, argv: Optional[list[str]] = None):
+    """
+    Run the given provider with the given arguments.
+
+    :param provider: Provider instance to run
+    :param argv: Optional arguments to run the provider with
+    """
+
     argv = argv or sys.argv
 
     servicer = ProviderServicer(provider)
@@ -178,6 +185,13 @@ def install_provider(host: str, namespace: str, project: str, version: str, plug
     Installs the given (host, namespace, project, version) provider into the plugin directory.
     The provider_script should be the terraform-provider-<project> executable.
     If the plugin directory does not exist, it will be created.
+
+    :param host: Host of the provider
+    :param namespace: Namespace of the provider
+    :param project: Project of the provider
+    :param version: Version of the provider
+    :param plugin_dir: Directory to install the provider into
+    :param provider_script: Path to the provider executable (typically installed as a pip entrypoint)
     """
 
     executable_name = provider_script.name
