@@ -40,10 +40,10 @@ class _ShutdownInterceptor(grpc.ServerInterceptor):
 
 def run_provider(provider: Provider, argv: Optional[list[str]] = None):
     """
-        Run the given provider with the given arguments.
+    Run the given provider with the given arguments.
 
-        :param provider: Provider instance to run
-        :param argv: Optional arguments to run the provider with
+    :param provider: Provider instance to run
+    :param argv: Optional arguments to run the provider with
     """
 
     argv = argv or sys.argv

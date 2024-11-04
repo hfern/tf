@@ -120,15 +120,15 @@ class PlanContext(_Context):
 class Resource(AbstractResource, Protocol):
     def validate(self, diags: Diagnostics, type_name: str, config: Config):
         """
-            Validate the resource configuration
+        Validate the resource configuration
 
-            This is called before any other operation to validate the configuration of the resource.
-            You should run parameter validation here.
-            Generate errors and warnings through the `diags` object.
+        This is called before any other operation to validate the configuration of the resource.
+        You should run parameter validation here.
+        Generate errors and warnings through the `diags` object.
 
-            :param diags: Diagnostics
-            :param type_name: The type name of the resource
-            :param config: The configuration to validate
+        :param diags: Diagnostics
+        :param type_name: The type name of the resource
+        :param config: The configuration to validate
         """
         schema = self.get_schema()
         _validate_config(diags, type_name, config, schema.attributes, schema.block_types)
@@ -136,12 +136,12 @@ class Resource(AbstractResource, Protocol):
     @abstractmethod
     def create(self, ctx: CreateContext, planned: State) -> Optional[State]:
         """
-            Create the resource, returning the actual state after creation.
+        Create the resource, returning the actual state after creation.
 
-            This is called when a user runs `opentofu apply` and the resource needs to be initially created.
+        This is called when a user runs `opentofu apply` and the resource needs to be initially created.
 
-            :param ctx: CreateContext
-            :param planned: The planned state of the resource
+        :param ctx: CreateContext
+        :param planned: The planned state of the resource
         """
 
     @abstractmethod
@@ -162,12 +162,12 @@ class Resource(AbstractResource, Protocol):
 
     def import_(self, ctx: ImportContext, id: str) -> Optional[State]:
         """
-            Import a resource
+        Import a resource
 
-            This is called when a user runs `opentofu import` and provides a resource ID to import.
+        This is called when a user runs `opentofu import` and provides a resource ID to import.
 
-            :param ctx: ImportContext
-            :param id: The resource ID to import
+        :param ctx: ImportContext
+        :param id: The resource ID to import
         """
 
     # TODO(Hunter): move
