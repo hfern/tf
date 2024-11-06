@@ -1,10 +1,9 @@
+..  mdinclude:: ../README.md
 ..  toctree::
     :maxdepth: 1
     :caption: Contents:
 
+    usage.md
+    elements.md
     api.rst
-
-* :ref:`genindex`
-* :ref:`search`
-
-..   mdinclude:: ../README.md
+    example.md

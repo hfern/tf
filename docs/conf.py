@@ -32,7 +32,9 @@ python_apigen_modules = {
       "tf": "api",
 }
 
-
+html_css_files = [
+    'custom.css',
+]
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output

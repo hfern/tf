@@ -99,7 +99,11 @@ class NormalizedJson(String):
 
 
 class List(TfType):
-    """Lists are ordered collections of homogeneously-typed values. Maps to Python `list`."""
+    """
+    Lists are ordered collections of homogeneously-typed values. Maps to Python `list`.
+
+    :param element_type: The type of the elements in the list.
+    """
 
     def __init__(self, element_type: TfType):
         self.element_type = element_type
@@ -130,6 +134,8 @@ class Set(List):
     OK in TF, Bad in Python: `set(({"a": 123},))`
 
     Result: `TypeError: unhashable type: 'dict'`
+
+    :param element_type: The type of the elements in the set.
     """
 
     def tf_type(self) -> bytes:
