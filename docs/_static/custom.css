@@ -1,0 +1,11 @@
+@media (min-width: 800px) {
+    dl.py {
+        border-left: 1px solid #eee;
+        padding-left: 1em;
+    }
+
+    dl.py dl.py {
+        border-left: none;
+        padding-left: 0;
+    }
+}

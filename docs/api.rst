@@ -1,6 +1,6 @@
-***
-API
-***
+**********
+Stable API
+**********
 
 .. py:module:: tf
 
@@ -106,9 +106,21 @@ Blocks define their own attributes and may have nested blocks.
 Types
 -----
 
+All types must implement the :class:`~tf.types.TfType` interface.
+
+.. autoclass:: tf.types.TfType
+    :members:
+
+A handful of types are provided for you:
+
+.. autoclass:: tf.types.Bool
 .. autoclass:: tf.types.Number
 .. autoclass:: tf.types.String
-.. autoclass:: tf.types.Bool
-.. autoclass:: tf.types.NormalizedJson
 .. autoclass:: tf.types.List
 .. autoclass:: tf.types.Set
+
+Several utility types are also provided:
+
+.. autoclass:: tf.types.NormalizedJson
+   :show-inheritance:
+
