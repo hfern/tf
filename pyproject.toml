@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "tf"
-version = "1.0.2"
+version = "1.0.3"
 description = "Python Terraform Provider framework"
 authors = ["Hunter Fernandes <hunter@hfernandes.com>"]
 license = "MIT"
@@ -26,6 +26,7 @@ python = "^3.11"
 msgpack = "^1.1.0"
 cryptography = ">43"
 grpcio = "^1.67.1"
+protobuf = "^5.28.3"
 
 
 [tool.poetry.group.dev.dependencies]

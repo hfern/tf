@@ -9,7 +9,8 @@ unbundling compound API calls.
 Instead, you can simply implement Create, Read, Update, and Delete operations
 using idiomatic Python for each of the resource types you want to support.
 
-Documentation is available at [https://python-tf.readthedocs.io](https://python-tf.readthedocs.io).
+* **Documentation** is available at [https://python-tf.readthedocs.io](https://python-tf.readthedocs.io)
+* **Source Code** is available at [https://github.com/hfern/tf](https://github.com/hfern/tf)
 
 ## Installation
 
