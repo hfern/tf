@@ -9,3 +9,9 @@
         padding-left: 0;
     }
 }
+
+
+.admonition.warning {
+    background: #FFF9CC;
+    border-color: #E1C80B;
+}
