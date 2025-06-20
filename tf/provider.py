@@ -6,6 +6,7 @@ from typing import Any, Optional, Tuple, Type, cast
 
 import grpc
 
+from tf.function import CallContext, Function
 from tf.gen import tfplugin_pb2 as pb
 from tf.gen import tfplugin_pb2_grpc as rpc
 from tf.iface import (
@@ -24,7 +25,7 @@ from tf.iface import (
 )
 from tf.schema import Attribute, NestedBlock
 from tf.types import Unknown
-from tf.utils import Diagnostics, _to_attribute_path, read_dynamic_value, to_dynamic_value
+from tf.utils import Diagnostic, Diagnostics, _to_attribute_path, read_dynamic_value, to_dynamic_value
 
 
 def _decode_state(
@@ -100,6 +101,7 @@ class ProviderServicer(rpc.ProviderServicer):
         self.app = app
         self._ds_cls_map: Optional[dict[str, Type[DataSource]]] = None
         self._res_cls_map: Optional[dict[str, Type[Resource]]] = None
+        self._func_cls_map: Optional[dict[str, Type[Function]]] = None
 
         # Getting a resource's attributes in k-v form is very common, want to cache
         self._res_attr_map: dict[str, dict[str, Attribute]] = {}
@@ -140,6 +142,15 @@ class ProviderServicer(rpc.ProviderServicer):
 
         return self._res_block_map[type_name]
 
+    def _load_func_cls_map(self) -> dict[str, Type[Function]]:
+        if self._func_cls_map is None:
+            self._func_cls_map = {func.get_name(): func for func in self.app.get_functions()}
+
+        return self._func_cls_map
+
+    def _get_func_cls(self, name: str) -> Type[Function]:
+        return self._load_func_cls_map()[name]
+
     @_log_errors
     def GetMetadata(self, request: pb.GetMetadata.Request, context: grpc.ServicerContext):
         # Is this thing even called????
@@ -152,13 +163,16 @@ class ProviderServicer(rpc.ProviderServicer):
         schema = self.app.get_provider_schema(diags).to_pb()
         self._load_ds_cls_map()
         self._load_res_cls_map()
+        self._load_func_cls_map()
         ds_schemas = {type_name: klass.get_schema().to_pb() for type_name, klass in self._load_ds_cls_map().items()}
         res_schema = {type_name: klass.get_schema().to_pb() for type_name, klass in self._load_res_cls_map().items()}
+        func_schemas = {name: klass.get_signature().to_pb() for name, klass in self._load_func_cls_map().items()}
         resp = pb.GetProviderSchema.Response(
             provider=schema,
             diagnostics=diags.to_pb(),
             data_source_schemas=ds_schemas,
             resource_schemas=res_schema,
+            functions=func_schemas,
         )
         return resp
 
@@ -432,12 +446,62 @@ class ProviderServicer(rpc.ProviderServicer):
     # ----------------- Functions ----------------- #
     @_log_errors
     def GetFunctions(self, request: pb.GetFunctions.Request, context: grpc.ServicerContext):
-        diags = Diagnostics().add_warning("GetFunctions is not implemented", "GetFunctions is not implemented")
-        return pb.GetFunctions.Response(diagnostics=diags.to_pb())
+        diags = Diagnostics()
+        self._load_func_cls_map()
+        func_schemas = {name: klass.get_signature().to_pb() for name, klass in self._load_func_cls_map().items()}
+        return pb.GetFunctions.Response(functions=func_schemas, diagnostics=diags.to_pb())
 
     @_log_errors
     def CallFunction(self, request: pb.CallFunction.Request, context: grpc.ServicerContext):
-        context.abort(grpc.StatusCode.UNIMPLEMENTED, "CallFunction is not implemented")
+        diags = Diagnostics()
+
+        try:
+            func_cls = self._get_func_cls(request.name)
+        except KeyError:
+            return pb.CallFunction.Response(error=pb.FunctionError(text=f"Function '{request.name}' not found"))
+
+        func_inst = self.app.new_function(func_cls)
+        signature = func_cls.get_signature()
+
+        # Decode arguments
+        decoded_args = []
+        for i, arg in enumerate(request.arguments):
+            arg_value = read_dynamic_value(arg)
+            if i < len(signature.parameters):
+                param = signature.parameters[i]
+                decoded_args.append(param.type.decode(arg_value))
+            elif signature.variadic_parameter:
+                decoded_args.append(signature.variadic_parameter.type.decode(arg_value))
+            else:
+                return pb.CallFunction.Response(
+                    error=pb.FunctionError(
+                        text=f"Too many arguments for function '{request.name}'", function_argument=i
+                    )
+                )
+
+        # Check for missing required arguments
+        if len(decoded_args) < len(signature.parameters):
+            return pb.CallFunction.Response(
+                error=pb.FunctionError(text=f"Missing required arguments for function '{request.name}'")
+            )
+
+        # Call the function
+        ctx = CallContext(diags, request.name)
+        try:
+            result = func_inst.call(ctx, decoded_args)
+
+            # Check for diagnostics that would be errors
+            if diags.has_errors():
+                errors = [d for d in diags.diagnostics if d.severity == Diagnostic.ERROR]
+                return pb.CallFunction.Response(
+                    error=pb.FunctionError(text=errors[0].summary if errors else "Function call failed")
+                )
+
+            # Encode the result
+            encoded_result = signature.return_type.type.encode(result)
+            return pb.CallFunction.Response(result=to_dynamic_value(encoded_result))
+        except Exception as e:
+            return pb.CallFunction.Response(error=pb.FunctionError(text=f"Function execution error: {str(e)}"))
 
     # ----------------- Graceful shutdown ----------------- #
     @_log_errors

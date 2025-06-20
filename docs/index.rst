@@ -13,6 +13,7 @@
 
     usage.md
     elements.md
+    functions.md
     api.rst
     example.md
     caveats.md
