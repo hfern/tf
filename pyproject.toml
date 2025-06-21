@@ -1,12 +1,24 @@
-[tool.poetry]
+[project]
 name = "tf"
-version = "1.0.4"
 description = "Python Terraform Provider framework"
-authors = ["Hunter Fernandes <hunter@hfernandes.com>"]
 license = "MIT"
-readme = "README.md"
 keywords = ["opentofu", "terraform", "provider", "python"]
+dynamic = ["version", "classifiers"]
+readme = "README.md"
+authors = [{name = "Hunter Fernandes", email = "hunter@hfernandes.com"}]
+requires-python = '>=3.11,<4.0'
+dependencies = [
+  'msgpack (>=1.1.0,<2.0.0)',
+  'cryptography (>43)',
+  'grpcio (>=1.67.1,<2.0.0)',
+  'protobuf (>=5.28.3,<6.0.0)'
+]
+
+[project.urls]
 homepage = "https://github.com/hfern/tf"
+
+[tool.poetry]
+version = "1.0.4"
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
@@ -19,14 +31,6 @@ classifiers = [
   "Programming Language :: Python",
   "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-
-
-[tool.poetry.dependencies]
-python = "^3.11"
-msgpack = "^1.1.0"
-cryptography = ">43"
-grpcio = "^1.67.1"
-protobuf = "^5.28.3"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -67,3 +71,4 @@ show_missing = true
 include = [
     "tf/*",
 ]
+
