@@ -81,7 +81,9 @@ provider "myprovider" {}
 resource "myprovider_myresource" "myresource" {
   # ...
 }
+```
 
+```
 # Using provider functions
 output "example" {
   value = provider::myprovider::myfunction("input")

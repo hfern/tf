@@ -237,7 +237,7 @@ class MyProvider(Provider):
 
 Once implemented, your functions can be used in Terraform configurations:
 
-```hcl
+```
 # Using a simple function
 output "uppercase_name" {
   value = provider::myprovider::uppercase("hello world")
