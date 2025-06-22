@@ -75,6 +75,7 @@ def run_provider(provider: Provider, argv: Optional[list[str]] = None):
 
     from tf.gen import grpc_controller_pb2 as controller_pb
     from tf.gen import grpc_controller_pb2_grpc as controller_rpc
+    from tf.gen import grpc_stdio_pb2_grpc as stdio_rpc
     from tf.gen import tfplugin_pb2_grpc as rpc
     from tf.provider import ProviderServicer
 
@@ -105,6 +106,15 @@ def run_provider(provider: Provider, argv: Optional[list[str]] = None):
             return controller_pb.Empty()
 
     controller_rpc.add_GRPCControllerServicer_to_server(GRPCControllerServicer(), server)
+
+    # Add the GRPCStdio service to eliminate "Method not found!" errors
+    class GRPCStdioServicer(stdio_rpc.GRPCStdioServicer):
+        def StreamStdio(self, request, context):
+            # Return an empty generator - we don't actually stream stdio
+            # This just satisfies the go-plugin framework's expectations
+            return iter([])
+
+    stdio_rpc.add_GRPCStdioServicer_to_server(GRPCStdioServicer(), server)
 
     with tempfile.TemporaryDirectory() as tmp:
         sock_file = f"{tmp}/py-tf-plugin.sock" if "--stable" not in argv else "/tmp/py-tf-plugin.sock"
