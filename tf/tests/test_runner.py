@@ -14,6 +14,17 @@ from tf import runner
 from tf.tests.test_provider import ExampleProvider
 
 
+def mock_grpc_services():
+    """Context manager to mock all gRPC service registrations"""
+    import contextlib
+
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(mock.patch("tf.gen.tfplugin_pb2_grpc.add_ProviderServicer_to_server"))
+        stack.enter_context(mock.patch("tf.gen.grpc_controller_pb2_grpc.add_GRPCControllerServicer_to_server"))
+        stack.enter_context(mock.patch("tf.gen.grpc_stdio_pb2_grpc.add_GRPCStdioServicer_to_server"))
+        yield
+
+
 class RunProviderTest(TestCase):
     def test_prod(self):
         provider = ExampleProvider()
@@ -40,8 +51,8 @@ class RunProviderTest(TestCase):
         self.assertIn("MIIC", fields[5])  # common start of base64 encoded cert
 
         server_call.assert_called_once()
-        # Should be called twice now - once for Provider, once for GRPCController
-        self.assertEqual(2, mock_server.add_registered_method_handlers.call_count)
+        # Should be called three times now - Provider, GRPCController, and GRPCStdio
+        self.assertEqual(3, mock_server.add_registered_method_handlers.call_count)
         self.assertEqual(3, mock_server.wait_for_termination.call_count)
 
     def test_close_message(self):
@@ -396,15 +407,16 @@ class TimingDiagnosticsTest(TestCase):
         with mock.patch("grpc.server", return_value=mock_server):
             with mock.patch("tf.gen.tfplugin_pb2_grpc.add_ProviderServicer_to_server"):
                 with mock.patch("tf.gen.grpc_controller_pb2_grpc.add_GRPCControllerServicer_to_server"):
-                    with mock.patch("tf.runner._self_signed_cert", return_value=(b"cert", mock.Mock())):
-                        with mock.patch("builtins.print"):  # Mock print to avoid output
-                            with io.StringIO() as stderr:
-                                with contextlib.redirect_stderr(stderr):
-                                    runner.run_provider(provider, ["--prod"])
+                    with mock.patch("tf.gen.grpc_stdio_pb2_grpc.add_GRPCStdioServicer_to_server"):
+                        with mock.patch("tf.runner._self_signed_cert", return_value=(b"cert", mock.Mock())):
+                            with mock.patch("builtins.print"):  # Mock print to avoid output
+                                with io.StringIO() as stderr:
+                                    with contextlib.redirect_stderr(stderr):
+                                        runner.run_provider(provider, ["--prod"])
 
-                                output = stderr.getvalue()
-                                # Should not contain timing messages
-                                self.assertNotIn("[TIMING]", output)
+                                    output = stderr.getvalue()
+                                    # Should not contain timing messages
+                                    self.assertNotIn("[TIMING]", output)
 
     def test_timing_enabled_coverage(self):
         """Test that timing code executes without error when enabled"""
@@ -417,11 +429,12 @@ class TimingDiagnosticsTest(TestCase):
             with mock.patch("grpc.server", return_value=mock_server):
                 with mock.patch("tf.gen.tfplugin_pb2_grpc.add_ProviderServicer_to_server"):
                     with mock.patch("tf.gen.grpc_controller_pb2_grpc.add_GRPCControllerServicer_to_server"):
-                        with mock.patch("tf.runner._self_signed_cert", return_value=(b"cert", mock.Mock())):
-                            with mock.patch("builtins.print"):  # Mock print to avoid output
-                                # Just run it - the timing code will execute
-                                runner.run_provider(provider, ["--prod"])
-                                # If we get here without exception, the timing code worked
+                        with mock.patch("tf.gen.grpc_stdio_pb2_grpc.add_GRPCStdioServicer_to_server"):
+                            with mock.patch("tf.runner._self_signed_cert", return_value=(b"cert", mock.Mock())):
+                                with mock.patch("builtins.print"):  # Mock print to avoid output
+                                    # Just run it - the timing code will execute
+                                    runner.run_provider(provider, ["--prod"])
+                                    # If we get here without exception, the timing code worked
 
 
 class GRPCControllerTest(TestCase):
@@ -488,9 +501,10 @@ class GRPCControllerTest(TestCase):
                     "tf.gen.grpc_controller_pb2_grpc.add_GRPCControllerServicer_to_server",
                     side_effect=capture_controller,
                 ):
-                    stdout = io.StringIO()
-                    with contextlib.redirect_stdout(stdout):
-                        runner.run_provider(provider, ["cmd", "--dev"])
+                    with mock.patch("tf.gen.grpc_stdio_pb2_grpc.add_GRPCStdioServicer_to_server"):
+                        stdout = io.StringIO()
+                        with contextlib.redirect_stdout(stdout):
+                            runner.run_provider(provider, ["cmd", "--dev"])
 
         # Now test the captured GRPCControllerServicer
         self.assertIsNotNone(controller_servicer)
@@ -615,9 +629,10 @@ class GRPCControllerTest(TestCase):
                     "tf.gen.grpc_controller_pb2_grpc.add_GRPCControllerServicer_to_server",
                     side_effect=capture_controller,
                 ):
-                    stdout = io.StringIO()
-                    with contextlib.redirect_stdout(stdout):
-                        runner.run_provider(provider, ["cmd", "--dev"])
+                    with mock.patch("tf.gen.grpc_stdio_pb2_grpc.add_GRPCStdioServicer_to_server"):
+                        stdout = io.StringIO()
+                        with contextlib.redirect_stdout(stdout):
+                            runner.run_provider(provider, ["cmd", "--dev"])
 
         # Now test the captured GRPCControllerServicer
         self.assertIsNotNone(controller_servicer)
@@ -641,6 +656,42 @@ class GRPCControllerTest(TestCase):
         self.assertTrue(captured_stopper.stopped)
 
 
+class GRPCStdioTest(TestCase):
+    def test_grpc_stdio_stream(self):
+        """Test that GRPCStdio.StreamStdio returns empty iterator"""
+        provider = ExampleProvider()
+        mock_server = mock.Mock()
+
+        # Capture the GRPCStdio servicer
+        stdio_servicer = None
+
+        def capture_stdio(servicer, server):
+            nonlocal stdio_servicer
+            stdio_servicer = servicer
+
+        with mock.patch("grpc.server", return_value=mock_server):
+            with mock.patch("tf.gen.tfplugin_pb2_grpc.add_ProviderServicer_to_server"):
+                with mock.patch("tf.gen.grpc_controller_pb2_grpc.add_GRPCControllerServicer_to_server"):
+                    with mock.patch(
+                        "tf.gen.grpc_stdio_pb2_grpc.add_GRPCStdioServicer_to_server",
+                        side_effect=capture_stdio,
+                    ):
+                        stdout = io.StringIO()
+                        with contextlib.redirect_stdout(stdout):
+                            runner.run_provider(provider, ["cmd", "--dev"])
+
+        # Test the captured GRPCStdioServicer
+        self.assertIsNotNone(stdio_servicer)
+
+        # Test StreamStdio method
+        request = mock.Mock()
+        context = mock.Mock()
+        result = stdio_servicer.StreamStdio(request, context)
+
+        # Should return an empty iterator
+        self.assertEqual(list(result), [])
+
+
 class KeyboardInterruptTest(TestCase):
     def test_keyboard_interrupt_during_wait(self):
         """Test that KeyboardInterrupt is handled gracefully"""
@@ -658,11 +709,12 @@ class KeyboardInterruptTest(TestCase):
         with mock.patch("grpc.server", return_value=mock_server):
             with mock.patch("tf.gen.tfplugin_pb2_grpc.add_ProviderServicer_to_server"):
                 with mock.patch("tf.gen.grpc_controller_pb2_grpc.add_GRPCControllerServicer_to_server"):
-                    with mock.patch("tf.runner._self_signed_cert", return_value=(b"cert", mock.Mock())):
-                        stdout = io.StringIO()
-                        with contextlib.redirect_stdout(stdout):
-                            # Run in prod mode to trigger the while loop
-                            runner.run_provider(provider, ["cmd", "--prod"])
+                    with mock.patch("tf.gen.grpc_stdio_pb2_grpc.add_GRPCStdioServicer_to_server"):
+                        with mock.patch("tf.runner._self_signed_cert", return_value=(b"cert", mock.Mock())):
+                            stdout = io.StringIO()
+                            with contextlib.redirect_stdout(stdout):
+                                # Run in prod mode to trigger the while loop
+                                runner.run_provider(provider, ["cmd", "--prod"])
 
         # Server.stop should have been called from the KeyboardInterrupt handler
         mock_server.stop.assert_called_once_with(grace=0.5)
