@@ -517,7 +517,8 @@ class GetProviderSchemaTest(ProviderTestBase):
             },
         )
 
-        self.assertEqual(resp.provider_meta, pb.Schema())
+        # provider_meta should not be set (defaults to None)
+        self.assertFalse(resp.HasField("provider_meta"))
         self.assertEqual(resp.server_capabilities, pb.ServerCapabilities())
         self.assertEqual(resp.functions, {})
 
