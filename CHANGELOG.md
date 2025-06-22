@@ -43,6 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added proper server shutdown with `server.stop()` call to prevent 2-second timeout delays
   - Implemented `GRPCController` service required by go-plugin framework with `Shutdown` method
     - This eliminates "Method not found!" errors and allows proper plugin lifecycle management
+  - Added `GRPCStdio` service to eliminate "Method not found!" debug messages
+  - Populated `provider_meta` field with valid empty schema to eliminate "No provider meta schema returned" debug warning
+    - Previously caused nil pointer dereference when set to empty pb.Schema()
+    - Now returns properly initialized Schema with empty Block
   - These fixes eliminate the "plugin failed to exit gracefully" warnings and reduce terraform plan time by ~6 seconds
 
 ### Performance

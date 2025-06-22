@@ -517,8 +517,13 @@ class GetProviderSchemaTest(ProviderTestBase):
             },
         )
 
-        # provider_meta should not be set (defaults to None)
-        self.assertFalse(resp.HasField("provider_meta"))
+        # provider_meta should now be set with an empty schema
+        self.assertTrue(resp.HasField("provider_meta"))
+        # It should have an empty block with no attributes
+        self.assertEqual(resp.provider_meta.version, 0)
+        self.assertTrue(resp.provider_meta.HasField("block"))
+        self.assertEqual(len(resp.provider_meta.block.attributes), 0)
+        self.assertEqual(len(resp.provider_meta.block.block_types), 0)
         self.assertEqual(resp.server_capabilities, pb.ServerCapabilities())
         self.assertEqual(resp.functions, {})
 
