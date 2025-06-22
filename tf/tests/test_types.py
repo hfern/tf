@@ -110,3 +110,18 @@ class TypesTest(TestCase):
         self.assertTrue(set_type.semantically_equal(set(), set()))
         self.assertTrue(set_type.semantically_equal(None, None))
         self.assertTrue(set_type.semantically_equal(Unknown, Unknown))
+
+    def test_set_semantic_equality_with_dicts(self):
+        # Test with dict elements to ensure string conversion works
+        set_type = types.Set(types.NormalizedJson())
+
+        # Same dicts in same order
+        self.assertTrue(set_type.semantically_equal([{"a": 1}, {"b": 2}], [{"a": 1}, {"b": 2}]))
+        # Same dicts in different order
+        self.assertTrue(set_type.semantically_equal([{"a": 1}, {"b": 2}], [{"b": 2}, {"a": 1}]))
+        # Different dicts
+        self.assertFalse(set_type.semantically_equal([{"a": 1}, {"b": 2}], [{"a": 1}, {"c": 3}]))
+        # Different lengths
+        self.assertFalse(set_type.semantically_equal([{"a": 1}], [{"a": 1}, {"b": 2}]))
+        # Empty lists
+        self.assertTrue(set_type.semantically_equal([], []))
