@@ -9,31 +9,56 @@ import zipfile
 from concurrent import futures
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
-import grpc
-from cryptography import x509
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
-
-from tf.gen import tfplugin_pb2_grpc as rpc
+# Defer expensive imports - these will be imported when needed
+# grpc: ~22.5ms, cryptography: ~20ms, protobuf: ~9-21ms
 from tf.iface import Provider
-from tf.provider import ProviderServicer
 
 
-class _LoggingInterceptor(grpc.ServerInterceptor):
+class _LoggingInterceptor:
+    """gRPC interceptor for logging"""
+
     def intercept_service(self, continuation, handler_call_details):
-        print(f"Handling call to {handler_call_details}")
-        return continuation(handler_call_details)
+        if os.environ.get("TF_PLUGIN_DEBUG") == "1":
+            print(f"[DEBUG] gRPC method called: {handler_call_details.method}", file=sys.stderr)
+
+        # Always log unimplemented errors to help debugging
+        result = continuation(handler_call_details)
+        if result and hasattr(result, "code") and hasattr(result, "details"):
+            # Import grpc here to avoid circular import
+            import grpc
+
+            if result.code() == grpc.StatusCode.UNIMPLEMENTED:
+                print(f"[ERROR] Unimplemented method: {handler_call_details.method}", file=sys.stderr)
+
+        return result
 
 
-class _ShutdownInterceptor(grpc.ServerInterceptor):
+class _ShutdownInterceptor:
+    """gRPC interceptor for handling shutdown"""
+
     def __init__(self):
         self.stopped = False
+        self.server = None  # Will be set when we create the server
 
     def intercept_service(self, continuation, handler_call_details):
-        if handler_call_details.method == "/plugin.GRPCController/Shutdown":
+        # Handle both provider shutdown methods
+        if handler_call_details.method in ["/tfplugin6.Provider/StopProvider", "/plugin.GRPCController/Shutdown"]:
             self.stopped = True
+            # Schedule server stop after response is sent
+            if self.server:
+                # Use a thread to stop the server after a brief delay
+                # This allows the response to be sent first
+                import threading
+
+                def stop_server():
+                    import time
+
+                    time.sleep(0.01)  # Small delay to ensure response is sent
+                    self.server.stop(grace=0.5)  # Stop accepting new requests, wait up to 0.5s for existing ones
+
+                threading.Thread(target=stop_server, daemon=True).start()
 
         return continuation(handler_call_details)
 
@@ -45,6 +70,24 @@ def run_provider(provider: Provider, argv: Optional[list[str]] = None):
     :param provider: Provider instance to run
     :param argv: Optional arguments to run the provider with
     """
+    import time
+
+    start_time = time.time()
+    debug_timing = os.environ.get("TF_PLUGIN_TIMING") == "1"
+
+    # Lazy load expensive imports
+    import_start = time.time() if debug_timing else 0.0
+
+    import grpc
+
+    from tf.gen import grpc_controller_pb2 as controller_pb
+    from tf.gen import grpc_controller_pb2_grpc as controller_rpc
+    from tf.gen import tfplugin_pb2_grpc as rpc
+    from tf.provider import ProviderServicer
+
+    if debug_timing:
+        import_time = time.time() - import_start
+        print(f"[TIMING] Import time: {import_time*1000:.2f}ms", file=sys.stderr)
 
     argv = argv or sys.argv
 
@@ -55,7 +98,30 @@ def run_provider(provider: Provider, argv: Optional[list[str]] = None):
         interceptors=[_LoggingInterceptor(), stopper],
     )
 
+    # Give the interceptor a reference to the server so it can stop it
+    stopper.server = server
+
+    # Add the Provider service
     rpc.add_ProviderServicer_to_server(servicer, server)
+
+    # Add the GRPCController service required by go-plugin
+    class GRPCControllerServicer(controller_rpc.GRPCControllerServicer):
+        def Shutdown(self, request, context):
+            # Return empty response and trigger shutdown
+            stopper.stopped = True
+            if stopper.server:
+                import threading
+
+                def stop_server():
+                    import time
+
+                    time.sleep(0.01)
+                    stopper.server.stop(grace=0.5)
+
+                threading.Thread(target=stop_server, daemon=True).start()
+            return controller_pb.Empty()
+
+    controller_rpc.add_GRPCControllerServicer_to_server(GRPCControllerServicer(), server)
 
     with tempfile.TemporaryDirectory() as tmp:
         sock_file = f"{tmp}/py-tf-plugin.sock" if "--stable" not in argv else "/tmp/py-tf-plugin.sock"
@@ -84,10 +150,21 @@ def run_provider(provider: Provider, argv: Optional[list[str]] = None):
             server.wait_for_termination()
             return
 
+        ssl_start = time.time() if debug_timing else 0.0
+
         server_chain, server_ssl_config = _self_signed_cert()
+
+        if debug_timing:
+            ssl_time = time.time() - ssl_start
+            print(f"[TIMING] SSL cert time: {ssl_time*1000:.2f}ms", file=sys.stderr)
+
         server.add_secure_port(tx, server_ssl_config)
 
         server.start()
+
+        if debug_timing:
+            total_time = time.time() - start_time
+            print(f"[TIMING] Total startup time: {total_time*1000:.2f}ms", file=sys.stderr)
 
         print(
             "|".join(
@@ -110,12 +187,52 @@ def run_provider(provider: Provider, argv: Optional[list[str]] = None):
         # quickly add up to the client
         while server.wait_for_termination(0.05):
             if stopper.stopped:
-                print("Stopping server...")
                 break
 
 
-def _self_signed_cert() -> Tuple[bytes, grpc.ServerCredentials]:
-    """Generate a keypair, a cert, and return a server credentials object"""
+def _get_cert_cache_path() -> Path:
+    """Get the path for caching SSL certificates"""
+    cache_dir = Path.home() / ".cache" / "tf-python-provider"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir / "ssl_cert.json"
+
+
+def _self_signed_cert() -> Tuple[bytes, Any]:
+    """Generate or load cached keypair and cert, return a server credentials object"""
+    # Lazy load expensive cryptography imports
+    import grpc
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    cache_path = _get_cert_cache_path()
+
+    # Try to load from cache first
+    if cache_path.exists():
+        try:
+            with open(cache_path, "r") as f:
+                cached = json.load(f)
+
+            # Check if certificate is still valid
+            cert_pem = cached["cert_pem"].encode()
+            cert = x509.load_pem_x509_certificate(cert_pem)
+            # Compare UTC times
+            from datetime import timezone as tz
+
+            if cert.not_valid_after_utc > datetime.now(tz.utc):
+                # Certificate is still valid, use cached version
+                private_key_pem = cached["key_pem"].encode()
+                cert_chain = base64.b64decode(cached["cert_chain"])
+
+                return cert_chain, grpc.ssl_server_credentials(
+                    private_key_certificate_chain_pairs=[(private_key_pem, cert_pem)],
+                    require_client_auth=False,
+                )
+        except (json.JSONDecodeError, KeyError, ValueError):
+            # Cache is corrupted, regenerate
+            pass
+
+    # Generate new certificate
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=1024)
     private_key_pem = private_key.private_bytes(
         encoding=serialization.Encoding.PEM,
@@ -134,7 +251,7 @@ def _self_signed_cert() -> Tuple[bytes, grpc.ServerCredentials]:
         .public_key(private_key.public_key())
         .serial_number(x509.random_serial_number())
         .not_valid_before(now - timedelta(seconds=1))
-        .not_valid_after(now + timedelta(days=1))
+        .not_valid_after(now + timedelta(days=7))  # Valid for 7 days instead of 1
         .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
         .add_extension(
             x509.SubjectAlternativeName([x509.DNSName("localhost")]),
@@ -167,12 +284,28 @@ def _self_signed_cert() -> Tuple[bytes, grpc.ServerCredentials]:
     )
 
     cert_chain = certificate.public_bytes(serialization.Encoding.DER)
+    cert_pem = certificate.public_bytes(serialization.Encoding.PEM)
+
+    # Cache the certificate
+    try:
+        with open(cache_path, "w") as f:
+            json.dump(
+                {
+                    "key_pem": private_key_pem.decode(),
+                    "cert_pem": cert_pem.decode(),
+                    "cert_chain": base64.b64encode(cert_chain).decode(),
+                },
+                f,
+            )
+    except IOError:
+        # Failed to cache, but continue anyway
+        pass
 
     return cert_chain, grpc.ssl_server_credentials(
         private_key_certificate_chain_pairs=[
             (
                 private_key_pem,
-                certificate.public_bytes(serialization.Encoding.PEM),
+                cert_pem,
             )
         ],
         # root_certificates=client_public_pem,
