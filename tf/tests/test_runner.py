@@ -206,7 +206,7 @@ class InstallProviderTest(TestCase):
 
 class ShutdownInterceptorThreadingTest(TestCase):
     def test_shutdown_with_server_stop(self):
-        """Test that shutdown interceptor calls server.stop() in a thread"""
+        """Test that shutdown interceptor sets stopped flag"""
         interceptor = runner._ShutdownInterceptor()
         mock_server = mock.Mock()
         interceptor.server = mock_server
@@ -222,14 +222,6 @@ class ShutdownInterceptorThreadingTest(TestCase):
 
         # Should have set stopped flag
         self.assertTrue(interceptor.stopped)
-
-        # Wait briefly for the thread to execute
-        import time
-
-        time.sleep(0.02)
-
-        # Server.stop should have been called
-        mock_server.stop.assert_called_once_with(grace=0.5)
 
     def test_shutdown_without_server(self):
         """Test that shutdown interceptor works even without server reference"""
@@ -443,16 +435,6 @@ class GRPCControllerTest(TestCase):
             def Shutdown(self, request, context):
                 # Return empty response and trigger shutdown
                 stopper.stopped = True
-                if stopper.server:
-                    import threading
-
-                    def stop_server():
-                        import time
-
-                        time.sleep(0.01)
-                        stopper.server.stop(grace=0.5)
-
-                    threading.Thread(target=stop_server, daemon=True).start()
                 return controller_pb.Empty()
 
         # Test the Shutdown method
@@ -464,14 +446,6 @@ class GRPCControllerTest(TestCase):
         # Should return Empty
         self.assertIsInstance(result, controller_pb.Empty)
         self.assertTrue(stopper.stopped)
-
-        # Wait for the thread to execute
-        import time
-
-        time.sleep(0.02)
-
-        # The server.stop should have been called
-        mock_server.stop.assert_called_once_with(grace=0.5)
 
     def test_grpc_controller_shutdown(self):
         """Test that GRPCController.Shutdown method works"""
@@ -528,14 +502,6 @@ class GRPCControllerTest(TestCase):
 
         # The stopper should be marked as stopped
         self.assertTrue(captured_stopper.stopped)
-
-        # Wait for the thread to execute
-        import time
-
-        time.sleep(0.02)
-
-        # The server.stop should have been called
-        captured_stopper.server.stop.assert_called_once_with(grace=0.5)
 
     def test_logging_interceptor_unimplemented(self):
         """Test that logging interceptor logs unimplemented errors"""
@@ -663,6 +629,36 @@ class GRPCControllerTest(TestCase):
 
         # The stopper should be marked as stopped
         self.assertTrue(captured_stopper.stopped)
+
+
+class KeyboardInterruptTest(TestCase):
+    def test_keyboard_interrupt_during_wait(self):
+        """Test that KeyboardInterrupt is handled gracefully"""
+        provider = ExampleProvider()
+        mock_server = mock.Mock()
+
+        # Make wait_for_termination raise KeyboardInterrupt
+        def wait_side_effect(timeout=None):
+            if timeout == 0.05:  # This is the call in the while loop
+                raise KeyboardInterrupt()
+            return None  # For the prod mode call
+
+        mock_server.wait_for_termination.side_effect = wait_side_effect
+
+        with mock.patch("grpc.server", return_value=mock_server):
+            with mock.patch("tf.gen.tfplugin_pb2_grpc.add_ProviderServicer_to_server"):
+                with mock.patch("tf.gen.grpc_controller_pb2_grpc.add_GRPCControllerServicer_to_server"):
+                    with mock.patch("tf.runner._self_signed_cert", return_value=(b"cert", mock.Mock())):
+                        stdout = io.StringIO()
+                        with contextlib.redirect_stdout(stdout):
+                            # Run in prod mode to trigger the while loop
+                            runner.run_provider(provider, ["cmd", "--prod"])
+
+        # Server.stop should have been called from the KeyboardInterrupt handler
+        # It gets called twice: once from KeyboardInterrupt (grace=0.5) and once from finally (grace=0)
+        self.assertEqual(mock_server.stop.call_count, 2)
+        mock_server.stop.assert_any_call(grace=0.5)  # From KeyboardInterrupt
+        mock_server.stop.assert_any_call(grace=0)  # From finally block
 
 
 class InstallProviderUpdateTest(InstallProviderTest):
