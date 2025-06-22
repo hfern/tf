@@ -206,7 +206,7 @@ class InstallProviderTest(TestCase):
 
 class ShutdownInterceptorThreadingTest(TestCase):
     def test_shutdown_with_server_stop(self):
-        """Test that shutdown interceptor sets stopped flag"""
+        """Test that shutdown interceptor stops server after response"""
         interceptor = runner._ShutdownInterceptor()
         mock_server = mock.Mock()
         interceptor.server = mock_server
@@ -215,13 +215,19 @@ class ShutdownInterceptorThreadingTest(TestCase):
         handler_details = mock.Mock(method="/tfplugin6.Provider/StopProvider")
 
         def continuation(x):
-            return None
+            return "response"
 
         # Call the interceptor
-        interceptor.intercept_service(continuation, handler_details)
+        result = interceptor.intercept_service(continuation, handler_details)
+
+        # Should have returned the response
+        self.assertEqual(result, "response")
 
         # Should have set stopped flag
         self.assertTrue(interceptor.stopped)
+
+        # Should have stopped the server
+        mock_server.stop.assert_called_once_with(grace=0)
 
     def test_shutdown_without_server(self):
         """Test that shutdown interceptor works even without server reference"""
@@ -243,6 +249,8 @@ class ShutdownInterceptorThreadingTest(TestCase):
     def test_non_stop_provider_method(self):
         """Test that other methods don't trigger shutdown"""
         interceptor = runner._ShutdownInterceptor()
+        mock_server = mock.Mock()
+        interceptor.server = mock_server
 
         # Mock handler details for a different method
         handler_details = mock.Mock(method="/tfplugin6.Provider/GetProviderSchema")
@@ -257,6 +265,8 @@ class ShutdownInterceptorThreadingTest(TestCase):
         self.assertFalse(interceptor.stopped)
         # Should have called continuation
         self.assertEqual(result, "test_result")
+        # Should NOT have called stop
+        mock_server.stop.assert_not_called()
 
 
 class SSLCertificateCacheTest(TestCase):
@@ -655,10 +665,7 @@ class KeyboardInterruptTest(TestCase):
                             runner.run_provider(provider, ["cmd", "--prod"])
 
         # Server.stop should have been called from the KeyboardInterrupt handler
-        # It gets called twice: once from KeyboardInterrupt (grace=0.5) and once from finally (grace=0)
-        self.assertEqual(mock_server.stop.call_count, 2)
-        mock_server.stop.assert_any_call(grace=0.5)  # From KeyboardInterrupt
-        mock_server.stop.assert_any_call(grace=0)  # From finally block
+        mock_server.stop.assert_called_once_with(grace=0.5)
 
 
 class InstallProviderUpdateTest(InstallProviderTest):
