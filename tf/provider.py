@@ -224,7 +224,7 @@ class ProviderServicer(rpc.ProviderServicer):
         func_schemas = {name: klass.get_signature().to_pb() for name, klass in self._load_func_cls_map().items()}
         resp = pb.GetProviderSchema.Response(
             provider=schema,
-            provider_meta=pb.Schema(),  # Empty provider meta schema
+            # Don't set provider_meta - let it default to None
             diagnostics=diags.to_pb(),
             data_source_schemas=ds_schemas,
             resource_schemas=res_schema,
