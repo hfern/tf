@@ -521,6 +521,22 @@ class GetProviderSchemaTest(ProviderTestBase):
         self.assertEqual(resp.server_capabilities, pb.ServerCapabilities())
         self.assertEqual(resp.functions, {})
 
+    def test_schema_caching(self):
+        """Test that schemas are cached on subsequent calls"""
+        provider, servicer, ctx = self.provider_servicer_context()
+
+        # First call - schemas will be computed and cached
+        resp1 = servicer.GetProviderSchema(pb.GetProviderSchema.Request(), ctx)
+        self.assert_no_diagnostic_errors(resp1)
+
+        # Second call - should use cached schemas
+        resp2 = servicer.GetProviderSchema(pb.GetProviderSchema.Request(), ctx)
+        self.assert_no_diagnostic_errors(resp2)
+
+        # Responses should be identical
+        self.assertEqual(resp1.resource_schemas, resp2.resource_schemas)
+        self.assertEqual(resp1.data_source_schemas, resp2.data_source_schemas)
+
 
 class ValidateProviderConfigTest(ProviderTestBase):
     def test_happy(self):
@@ -1235,6 +1251,48 @@ class ApplyResourceChangeTest(ProviderTestBase):
             ),
         )
 
+    def test_update_json_semantic_change(self):
+        """Test semantic change in JSON that requires re-encoding"""
+        provider, servicer, ctx = self.provider_servicer_context()
+
+        # First create a JsonResource that modifies the value slightly
+        class ModifyingJsonResource(JsonResource):
+            def update(self, ctx: UpdateContext, current: State, planned: State) -> Optional[State]:
+                # Return a slightly modified version to trigger re-encoding
+                result = planned.copy()
+                if "json" in result:
+                    # The value is already a dict here, not a string
+                    data = result["json"].copy() if isinstance(result["json"], dict) else {"value": result["json"]}
+                    data["modified"] = True
+                    result["json"] = data
+                return result
+
+        # Load the resource class map first
+        servicer._load_res_cls_map()
+
+        # Temporarily replace the resource class
+        original_cls = servicer._res_cls_map["test_json"]
+        servicer._res_cls_map["test_json"] = ModifyingJsonResource
+
+        try:
+            resp = servicer.ApplyResourceChange(
+                pb.ApplyResourceChange.Request(
+                    type_name="test_json",
+                    prior_state=to_dynamic_value({"json": '{"a": 1}'}),
+                    planned_state=to_dynamic_value({"json": '{"a": 1}'}),
+                    config=to_dynamic_value({"json": '{"a": 1}'}),
+                ),
+                ctx,
+            )
+
+            self.assert_no_diagnostic_errors(resp)
+            new_state = read_dynamic_value(resp.new_state)
+            # Should have the modified value
+            self.assertEqual(new_state["json"], '{"a": 1, "modified": true}')
+        finally:
+            # Restore original class
+            servicer._res_cls_map["test_json"] = original_cls
+
 
 class ReadResourceTest(ProviderTestBase):
     def test_happy(self):
@@ -1935,26 +1993,40 @@ class CallFunctionTest(ProviderTestBase):
 
 
 class StopProviderTest(ProviderTestBase):
-    @patch("sys.stderr", new_callable=StringIO)
-    def test_not_implemented(self, _):
+    def test_stop_provider_response(self):
         provider, servicer, ctx = self.provider_servicer_context()
+        resp = servicer.StopProvider(pb.StopProvider.Request(), ctx)
 
-        try:
-            servicer.StopProvider(pb.StopProvider.Request(), ctx)
-        except AbortError as e:
-            self.assertEqual(e.code, grpc.StatusCode.UNIMPLEMENTED)
-            self.assertEqual(e.details, "StopProvider is not implemented")
+        self.assertIsInstance(resp, pb.StopProvider.Response)
 
 
 class GetMetadataTest(ProviderTestBase):
-    @patch("sys.stderr", new_callable=StringIO)
-    def test_not_implemented(self, _):
+    def test_metadata_response(self):
         provider, servicer, ctx = self.provider_servicer_context()
-        try:
-            servicer.GetMetadata(pb.GetMetadata.Request(), ctx)
-        except AbortError as e:
-            self.assertEqual(e.code, grpc.StatusCode.UNIMPLEMENTED)
-            self.assertEqual(e.details, "GetMetadata is not implemented by Python Plugin SDK")
+        resp = servicer.GetMetadata(pb.GetMetadata.Request(), ctx)
+
+        self.assertIsInstance(resp, pb.GetMetadata.Response)
+        self.assertTrue(resp.server_capabilities.plan_destroy)
+        self.assertTrue(resp.server_capabilities.get_provider_schema_optional)
+
+
+class LogErrorsDecoratorTest(ProviderTestBase):
+    @patch("sys.stderr", new_callable=StringIO)
+    def test_exception_logging(self, mock_stderr):
+        """Test that _log_errors decorator logs exceptions"""
+        from tf.provider import _log_errors
+
+        @_log_errors
+        def failing_method():
+            raise ValueError("Test exception")
+
+        with self.assertRaises(ValueError):
+            failing_method()
+
+        # Check that traceback was printed
+        output = mock_stderr.getvalue()
+        self.assertIn("Test exception", output)
+        self.assertIn("Traceback", output)
 
 
 class UpgradeResourceStateTest(ProviderTestBase):

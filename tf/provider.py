@@ -79,8 +79,20 @@ def _encode_state_d(
         if v is Unknown:
             encoded[k] = Unknown
         elif k in attrs:
-            if old and k in old and attrs[k].type.semantically_equal(attrs[k].type.decode(old[k]), v):
-                encoded[k] = old[k]
+            # Check if we can reuse the old encoded value
+            if old and k in old:
+                # For simple types, compare encoded values directly
+                if attrs[k].type.__class__.__name__ in ("Number", "String", "Bool"):
+                    new_encoded = attrs[k].type.encode(v)
+                    if old[k] == new_encoded:
+                        encoded[k] = old[k]
+                    else:
+                        encoded[k] = new_encoded
+                # For complex types, use semantic equality
+                elif attrs[k].type.semantically_equal(attrs[k].type.decode(old[k]), v):
+                    encoded[k] = old[k]
+                else:
+                    encoded[k] = attrs[k].type.encode(v)
             else:
                 encoded[k] = attrs[k].type.encode(v)
         else:
@@ -127,6 +139,10 @@ class ProviderServicer(rpc.ProviderServicer):
         # Sam for res blocks
         self._res_block_map: dict[str, dict[str, NestedBlock]] = {}
 
+        # Cache for schemas to avoid repeated computation
+        self._ds_schema_cache: dict[str, Any] = {}
+        self._res_schema_cache: dict[str, Any] = {}
+
     def _load_ds_cls_map(self) -> dict[str, Type[DataSource]]:
         if self._ds_cls_map is None:
             prefix = self.app.get_model_prefix()
@@ -172,8 +188,16 @@ class ProviderServicer(rpc.ProviderServicer):
 
     @_log_errors
     def GetMetadata(self, request: pb.GetMetadata.Request, context: grpc.ServicerContext):
-        # Is this thing even called????
-        context.abort(grpc.StatusCode.UNIMPLEMENTED, "GetMetadata is not implemented by Python Plugin SDK")
+        # Return empty metadata - this is called by Terraform to check capabilities
+        return pb.GetMetadata.Response(
+            server_capabilities=pb.ServerCapabilities(
+                # We support plan_destroy for proper cleanup
+                plan_destroy=True,
+                # GetProviderSchemaOptional indicates we can handle GetProviderSchema being called
+                # conditionally based on whether Terraform has a cached schema
+                get_provider_schema_optional=True,
+            )
+        )
 
     # ----------------- Provider ----------------- #
     @_log_errors
@@ -183,8 +207,20 @@ class ProviderServicer(rpc.ProviderServicer):
         self._load_ds_cls_map()
         self._load_res_cls_map()
         self._load_func_cls_map()
-        ds_schemas = {type_name: klass.get_schema().to_pb() for type_name, klass in self._load_ds_cls_map().items()}
-        res_schema = {type_name: klass.get_schema().to_pb() for type_name, klass in self._load_res_cls_map().items()}
+
+        # Use cached schemas
+        ds_schemas = {}
+        for type_name, klass in self._load_ds_cls_map().items():
+            if type_name not in self._ds_schema_cache:
+                self._ds_schema_cache[type_name] = klass.get_schema().to_pb()
+            ds_schemas[type_name] = self._ds_schema_cache[type_name]
+
+        res_schema = {}
+        for type_name, klass in self._load_res_cls_map().items():
+            if type_name not in self._res_schema_cache:
+                self._res_schema_cache[type_name] = klass.get_schema().to_pb()
+            res_schema[type_name] = self._res_schema_cache[type_name]
+
         func_schemas = {name: klass.get_signature().to_pb() for name, klass in self._load_func_cls_map().items()}
         resp = pb.GetProviderSchema.Response(
             provider=schema,
@@ -375,10 +411,14 @@ class ProviderServicer(rpc.ProviderServicer):
             if attrs[k].requires_replace:
                 requires_replace.append(_to_attribute_path([k]))
 
+        # Only deepcopy if states are not None to avoid unnecessary copies
+        prior_copy = deepcopy(prior_state) if prior_state is not None else None
+        proposed_copy = deepcopy(proposed_new_state) if proposed_new_state is not None else None
+
         proposed_new_state = inst.plan(
             PlanContext(diags, type_name, changed_fields=changed_keys),
-            deepcopy(prior_state),
-            deepcopy(proposed_new_state),
+            prior_copy,
+            proposed_copy or {},
         )
 
         return pb.PlanResourceChange.Response(
@@ -540,4 +580,6 @@ class ProviderServicer(rpc.ProviderServicer):
     # ----------------- Graceful shutdown ----------------- #
     @_log_errors
     def StopProvider(self, request: pb.StopProvider.Request, context: grpc.ServicerContext):
-        context.abort(grpc.StatusCode.UNIMPLEMENTED, "StopProvider is not implemented")
+        # Return empty response to acknowledge shutdown request
+        # The actual shutdown is handled by the interceptor and server loop
+        return pb.StopProvider.Response()
