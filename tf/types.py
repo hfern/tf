@@ -97,8 +97,9 @@ class NormalizedJson(String):
             raise ValueError(f"Error parsing JSON: {e}") from e
 
     def semantically_equal(self, a_decoded, b_decoded) -> bool:
-        # This is hilariously inefficient but meh
-        return self.encode(a_decoded) == self.encode(b_decoded)
+        # Direct comparison is sufficient for normalized JSON
+        # since json.loads/dumps with sort_keys normalizes the data
+        return a_decoded == b_decoded
 
 
 class List(TfType):
@@ -149,20 +150,20 @@ class Set(List):
         if a_decoded is b_decoded:  # None or Unknown or literally the same
             return True
 
-        a = list(a_decoded)  # op[tional set => list
-        b = list(b_decoded)  # optional set => list
-
-        if len(a) == len(b) == 0:
-            return True
+        # Convert to lists to handle both set and list inputs
+        a = list(a_decoded) if a_decoded is not None else []
+        b = list(b_decoded) if b_decoded is not None else []
 
         if len(a) != len(b):
             return False
 
-        # Super gross, super inefficient, revisit
-        # Sets are equal iff every element in a is in b and vice versa
-        # (unfortunately, we don't deal with the deduplication logic)
-        # (python dict comparison is doing a lot of work here)
-        return all(a_ in b and b_ in a for a_, b_ in zip(a, b))
+        if len(a) == 0:
+            return True
+
+        # For sets, order doesn't matter, so we need to check that
+        # every element in a has a matching element in b
+        # Convert to string for comparison since all TF values can be stringified
+        return sorted(map(str, a)) == sorted(map(str, b))
 
 
 # Map
