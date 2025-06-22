@@ -46,19 +46,6 @@ class _ShutdownInterceptor:
         # Handle both provider shutdown methods
         if handler_call_details.method in ["/tfplugin6.Provider/StopProvider", "/plugin.GRPCController/Shutdown"]:
             self.stopped = True
-            # Schedule server stop after response is sent
-            if self.server:
-                # Use a thread to stop the server after a brief delay
-                # This allows the response to be sent first
-                import threading
-
-                def stop_server():
-                    import time
-
-                    time.sleep(0.01)  # Small delay to ensure response is sent
-                    self.server.stop(grace=0.5)  # Stop accepting new requests, wait up to 0.5s for existing ones
-
-                threading.Thread(target=stop_server, daemon=True).start()
 
         return continuation(handler_call_details)
 
@@ -109,16 +96,6 @@ def run_provider(provider: Provider, argv: Optional[list[str]] = None):
         def Shutdown(self, request, context):
             # Return empty response and trigger shutdown
             stopper.stopped = True
-            if stopper.server:
-                import threading
-
-                def stop_server():
-                    import time
-
-                    time.sleep(0.01)
-                    stopper.server.stop(grace=0.5)
-
-                threading.Thread(target=stop_server, daemon=True).start()
             return controller_pb.Empty()
 
     controller_rpc.add_GRPCControllerServicer_to_server(GRPCControllerServicer(), server)
@@ -185,9 +162,17 @@ def run_provider(provider: Provider, argv: Optional[list[str]] = None):
         # as .stop() does not actually interrupt wait_for_termination
         # There about quite a few termination calls, so longer timeouts
         # quickly add up to the client
-        while server.wait_for_termination(0.05):
-            if stopper.stopped:
-                break
+        try:
+            while server.wait_for_termination(0.05):
+                if stopper.stopped:
+                    break
+        except KeyboardInterrupt:
+            # Handle graceful shutdown on Ctrl+C
+            server.stop(grace=0.5)
+        finally:
+            # Ensure we always stop the server cleanly
+            if not stopper.stopped:
+                server.stop(grace=0)
 
 
 def _get_cert_cache_path() -> Path:
