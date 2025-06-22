@@ -43,11 +43,17 @@ class _ShutdownInterceptor:
         self.server = None  # Will be set when we create the server
 
     def intercept_service(self, continuation, handler_call_details):
-        # Handle both provider shutdown methods
+        # Let the call complete first
+        result = continuation(handler_call_details)
+
+        # Then handle shutdown after response is sent
         if handler_call_details.method in ["/tfplugin6.Provider/StopProvider", "/plugin.GRPCController/Shutdown"]:
             self.stopped = True
+            if self.server:
+                # Stop the server immediately after sending response
+                self.server.stop(grace=0)
 
-        return continuation(handler_call_details)
+        return result
 
 
 def run_provider(provider: Provider, argv: Optional[list[str]] = None):
@@ -94,7 +100,7 @@ def run_provider(provider: Provider, argv: Optional[list[str]] = None):
     # Add the GRPCController service required by go-plugin
     class GRPCControllerServicer(controller_rpc.GRPCControllerServicer):
         def Shutdown(self, request, context):
-            # Return empty response and trigger shutdown
+            # Mark as stopped - the interceptor will handle the actual shutdown
             stopper.stopped = True
             return controller_pb.Empty()
 
@@ -169,10 +175,6 @@ def run_provider(provider: Provider, argv: Optional[list[str]] = None):
         except KeyboardInterrupt:
             # Handle graceful shutdown on Ctrl+C
             server.stop(grace=0.5)
-        finally:
-            # Ensure we always stop the server cleanly
-            if not stopper.stopped:
-                server.stop(grace=0)
 
 
 def _get_cert_cache_path() -> Path:
