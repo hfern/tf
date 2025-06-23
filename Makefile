@@ -17,6 +17,8 @@ test-format:
 
 update-tfplugin-proto:
 	$(HIDE)curl https://raw.githubusercontent.com/opentofu/opentofu/main/docs/plugin-protocol/$(TFPLUGIN_PROTO) > tfplugin.proto
+	$(HIDE)curl https://raw.githubusercontent.com/hashicorp/go-plugin/df457caa367789011bc0571ea1d5712b52f3fc88/internal/plugin/grpc_stdio.proto > grpc_stdio.proto
+	$(HIDE)curl https://raw.githubusercontent.com/hashicorp/go-plugin/df457caa367789011bc0571ea1d5712b52f3fc88/internal/plugin/grpc_controller.proto > grpc_controller.proto
 
 generate-tfproto:
 	$(HIDE)rm -rf ./tf/gen
@@ -27,7 +29,7 @@ generate-tfproto:
 		--grpc_python_out=. \
 		--pyi_out=. \
 		--proto_path=. \
-		tfplugin.proto
+		tfplugin.proto grpc_stdio.proto grpc_controller.proto
 	$(HIDE)echo "" > tf/gen/__init__.py
 
 test-python:
