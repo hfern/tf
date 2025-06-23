@@ -1,9 +1,12 @@
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Optional, Protocol, Sequence, Type, TypeAlias
+from typing import TYPE_CHECKING, Optional, Protocol, Sequence, Type, TypeAlias
 
 from tf.schema import Attribute, NestedBlock, Schema
 from tf.utils import Diagnostics
+
+if TYPE_CHECKING:  # pragma: no cover
+    from tf.function import Function
 
 """
 State is the current state of a resource.
@@ -212,8 +215,15 @@ class Provider(Protocol):
     def get_resources(self) -> list[Type[Resource]]:
         """Get all the resource types that this provider supports"""
 
+    def get_functions(self) -> list[Type["Function"]]:
+        """Get all the function types that this provider supports"""
+        return []
+
     def new_resource(self, klass: Type[Resource]) -> Resource:
         return klass(self)  # pyre-ignore[19]: noqa: Don't care about __init__
 
     def new_data_source(self, klass: Type[DataSource]) -> DataSource:
+        return klass(self)  # pyre-ignore[19]: noqa: Don't care about __init__
+
+    def new_function(self, klass: Type["Function"]) -> "Function":
         return klass(self)  # pyre-ignore[19]: noqa: Don't care about __init__

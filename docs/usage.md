@@ -1,10 +1,10 @@
 # Using the Framework
 
-There are three primary interfaces in this framework:
+There are four primary interfaces in this framework:
 
 1. **Provider** - By implementing this interface, you can define
     a new provider. This defines its own schema, and supplies
-    resource and data source classes to the framework.
+    resource, data source, and function classes to the framework.
 1. **Data Source** - This interface is used to define a data source, which
     is a read-only object that can be used to query information
     from the provider or backing service.
@@ -13,9 +13,13 @@ There are three primary interfaces in this framework:
     and delete resources in the provider or backing service.
     Resources represent full "ownership" of the underlying object.
     This is the primary type you will use to interact with the system.
+1. **Function** - This interface is used to define provider functions, which
+    are stateless operations that can transform data, perform calculations,
+    or validate inputs. Functions are called directly from Terraform
+    configurations and return a single value.
 
-To use this interface, create one class implemented `Provider`, and any number
-of classes implementing `Resource` and `DataSource`.
+To use this interface, create one class implementing `Provider`, and any number
+of classes implementing `Resource`, `DataSource`, and `Function`.
 
 Then, call `run_provider` with an instance of your provider class. A basic
 main function might look like:
@@ -78,3 +82,12 @@ resource "myprovider_myresource" "myresource" {
   # ...
 }
 ```
+
+```
+# Using provider functions
+output "example" {
+  value = provider::myprovider::myfunction("input")
+}
+```
+
+For more details on implementing functions, see the [Functions documentation](functions.md).

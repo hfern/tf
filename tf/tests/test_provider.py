@@ -3,9 +3,10 @@ import json
 from io import StringIO
 from typing import Optional, Type
 from unittest import TestCase, mock
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import grpc
+import msgpack
 
 from tf import blocks, schema, types
 from tf import provider as p
@@ -1507,30 +1508,292 @@ class GetFunctionsTest(ProviderTestBase):
             ctx,
         )
 
+        # Since functions are now implemented, it should return an empty functions map
+        # when the provider has no functions
         self.assertEqual(
             resp,
             pb.GetFunctions.Response(
-                diagnostics=[
-                    pb.Diagnostic(
-                        severity=pb.Diagnostic.WARNING,
-                        summary="GetFunctions is not implemented",
-                        detail="GetFunctions is not implemented",
-                    ),
-                ],
+                functions={},
+                diagnostics=[],
             ),
         )
 
 
 class CallFunctionTest(ProviderTestBase):
-    @patch("sys.stderr", new_callable=StringIO)
-    def test_not_implemented(self, _):
+    def test_function_not_found(self):
         provider, servicer, ctx = self.provider_servicer_context()
 
-        try:
-            servicer.CallFunction(pb.CallFunction.Request(), ctx)
-        except AbortError as e:
-            self.assertEqual(e.code, grpc.StatusCode.UNIMPLEMENTED)
-            self.assertEqual(e.details, "CallFunction is not implemented")
+        resp = servicer.CallFunction(
+            pb.CallFunction.Request(name="nonexistent_func", arguments=[]),
+            ctx,
+        )
+
+        self.assertIsNotNone(resp.error)
+        self.assertEqual(resp.error.text, "Function 'nonexistent_func' not found")
+
+    def test_too_many_arguments(self):
+        # Create a test function with fixed parameters
+        from tf.function import Function, FunctionSignature, Parameter, Return
+        from tf.types import Number
+
+        class TestFunc(Function):
+            def __init__(self, provider):
+                self.provider = provider
+
+            @classmethod
+            def get_name(cls):
+                return "test_func"
+
+            @classmethod
+            def get_signature(cls):
+                return FunctionSignature(
+                    parameters=[Parameter(name="a", type=Number())],
+                    return_type=Return(type=Number()),
+                )
+
+            def call(self, ctx, arguments):
+                return arguments[0] * 2
+
+        provider = Mock()
+        provider.get_functions.return_value = [TestFunc]
+        provider.new_function = lambda cls: cls(provider)
+
+        servicer = p.ProviderServicer(provider)
+        ctx = Mock()
+
+        # Send too many arguments
+        resp = servicer.CallFunction(
+            pb.CallFunction.Request(
+                name="test_func",
+                arguments=[
+                    pb.DynamicValue(msgpack=msgpack.packb(5)),
+                    pb.DynamicValue(msgpack=msgpack.packb(10)),  # Extra argument
+                ],
+            ),
+            ctx,
+        )
+
+        self.assertIsNotNone(resp.error)
+        self.assertIn("Too many arguments", resp.error.text)
+        self.assertEqual(resp.error.function_argument, 1)
+
+    def test_missing_arguments(self):
+        # Create a test function requiring parameters
+        from tf.function import Function, FunctionSignature, Parameter, Return
+        from tf.types import Number
+
+        class TestFunc(Function):
+            def __init__(self, provider):
+                self.provider = provider
+
+            @classmethod
+            def get_name(cls):
+                return "test_func"
+
+            @classmethod
+            def get_signature(cls):
+                return FunctionSignature(
+                    parameters=[
+                        Parameter(name="a", type=Number()),
+                        Parameter(name="b", type=Number()),
+                    ],
+                    return_type=Return(type=Number()),
+                )
+
+            def call(self, ctx, arguments):
+                return arguments[0] + arguments[1]
+
+        provider = Mock()
+        provider.get_functions.return_value = [TestFunc]
+        provider.new_function = lambda cls: cls(provider)
+
+        servicer = p.ProviderServicer(provider)
+        ctx = Mock()
+
+        # Send too few arguments
+        resp = servicer.CallFunction(
+            pb.CallFunction.Request(
+                name="test_func",
+                arguments=[pb.DynamicValue(msgpack=msgpack.packb(5))],  # Missing second arg
+            ),
+            ctx,
+        )
+
+        self.assertIsNotNone(resp.error)
+        self.assertIn("Missing required arguments", resp.error.text)
+
+    def test_successful_function_call(self):
+        from tf.function import Function, FunctionSignature, Parameter, Return
+        from tf.types import Number
+
+        class AddFunc(Function):
+            def __init__(self, provider):
+                self.provider = provider
+
+            @classmethod
+            def get_name(cls):
+                return "add"
+
+            @classmethod
+            def get_signature(cls):
+                return FunctionSignature(
+                    parameters=[
+                        Parameter(name="a", type=Number()),
+                        Parameter(name="b", type=Number()),
+                    ],
+                    return_type=Return(type=Number()),
+                )
+
+            def call(self, ctx, arguments):
+                return arguments[0] + arguments[1]
+
+        provider = Mock()
+        provider.get_functions.return_value = [AddFunc]
+        provider.new_function = lambda cls: cls(provider)
+
+        servicer = p.ProviderServicer(provider)
+        ctx = Mock()
+
+        resp = servicer.CallFunction(
+            pb.CallFunction.Request(
+                name="add",
+                arguments=[
+                    pb.DynamicValue(msgpack=msgpack.packb(5)),
+                    pb.DynamicValue(msgpack=msgpack.packb(3)),
+                ],
+            ),
+            ctx,
+        )
+
+        if resp.HasField("error"):
+            self.fail(f"Unexpected error: {resp.error.text}")
+        result = msgpack.unpackb(resp.result.msgpack)
+        self.assertEqual(result, 8)
+
+    def test_function_with_diagnostics(self):
+        from tf.function import Function, FunctionSignature, Return
+        from tf.types import String
+
+        class ErrorFunc(Function):
+            def __init__(self, provider):
+                self.provider = provider
+
+            @classmethod
+            def get_name(cls):
+                return "error_func"
+
+            @classmethod
+            def get_signature(cls):
+                return FunctionSignature(
+                    parameters=[],
+                    return_type=Return(type=String()),
+                )
+
+            def call(self, ctx, arguments):
+                ctx.diagnostics.add_error("Test error", "This is a test")
+                return "failed"
+
+        provider = Mock()
+        provider.get_functions.return_value = [ErrorFunc]
+        provider.new_function = lambda cls: cls(provider)
+
+        servicer = p.ProviderServicer(provider)
+        ctx = Mock()
+
+        resp = servicer.CallFunction(
+            pb.CallFunction.Request(name="error_func", arguments=[]),
+            ctx,
+        )
+
+        self.assertIsNotNone(resp.error)
+        self.assertEqual(resp.error.text, "Test error")
+
+    def test_function_with_exception(self):
+        from tf.function import Function, FunctionSignature, Return
+        from tf.types import String
+
+        class ExceptionFunc(Function):
+            def __init__(self, provider):
+                self.provider = provider
+
+            @classmethod
+            def get_name(cls):
+                return "exception_func"
+
+            @classmethod
+            def get_signature(cls):
+                return FunctionSignature(
+                    parameters=[],
+                    return_type=Return(type=String()),
+                )
+
+            def call(self, ctx, arguments):
+                raise ValueError("Test exception")
+
+        provider = Mock()
+        provider.get_functions.return_value = [ExceptionFunc]
+        provider.new_function = lambda cls: cls(provider)
+
+        servicer = p.ProviderServicer(provider)
+        ctx = Mock()
+
+        resp = servicer.CallFunction(
+            pb.CallFunction.Request(name="exception_func", arguments=[]),
+            ctx,
+        )
+
+        self.assertIsNotNone(resp.error)
+        self.assertIn("Function execution error", resp.error.text)
+        self.assertIn("Test exception", resp.error.text)
+
+    def test_variadic_function(self):
+        from tf.function import Function, FunctionSignature, Parameter, Return
+        from tf.types import String
+
+        class ConcatFunc(Function):
+            def __init__(self, provider):
+                self.provider = provider
+
+            @classmethod
+            def get_name(cls):
+                return "concat"
+
+            @classmethod
+            def get_signature(cls):
+                return FunctionSignature(
+                    parameters=[Parameter(name="prefix", type=String())],
+                    variadic_parameter=Parameter(name="parts", type=String()),
+                    return_type=Return(type=String()),
+                )
+
+            def call(self, ctx, arguments):
+                if len(arguments) == 0:
+                    return ""
+                return arguments[0] + "".join(arguments[1:])
+
+        provider = Mock()
+        provider.get_functions.return_value = [ConcatFunc]
+        provider.new_function = lambda cls: cls(provider)
+
+        servicer = p.ProviderServicer(provider)
+        ctx = Mock()
+
+        resp = servicer.CallFunction(
+            pb.CallFunction.Request(
+                name="concat",
+                arguments=[
+                    pb.DynamicValue(msgpack=msgpack.packb("Hello")),
+                    pb.DynamicValue(msgpack=msgpack.packb(" ")),
+                    pb.DynamicValue(msgpack=msgpack.packb("World")),
+                ],
+            ),
+            ctx,
+        )
+
+        if resp.HasField("error"):
+            self.fail(f"Unexpected error: {resp.error.text}")
+        result = msgpack.unpackb(resp.result.msgpack)
+        self.assertEqual(result, "Hello World")
 
 
 class StopProviderTest(ProviderTestBase):
