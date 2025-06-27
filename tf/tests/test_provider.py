@@ -1365,7 +1365,7 @@ class ReadResourceTest(ProviderTestBase):
         resp = servicer.ReadResource(
             pb.ReadResource.Request(
                 type_name="test_json",
-                current_state=to_dynamic_value({"json": "[1,]"}),
+                current_state=to_dynamic_value({"json": "not valid json"}),
                 private=b"",
                 provider_meta={},
             ),
@@ -1378,7 +1378,7 @@ class ReadResourceTest(ProviderTestBase):
                     pb.Diagnostic(
                         severity=pb.Diagnostic.ERROR,
                         summary="Failed to decode field 'json'",
-                        detail="Error decoding field 'json': Error parsing JSON: Expecting value: line 1 column 4 (char 3)",
+                        detail="Error decoding field 'json': Error parsing JSON: Expecting value: line 1 column 1 (char 0)",
                         attribute=pb.AttributePath(steps=[pb.AttributePath.Step(attribute_name="json")]),
                     )
                 ],
