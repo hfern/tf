@@ -285,7 +285,7 @@ def _self_signed_cert() -> Tuple[bytes, Any]:
 
     # Cache the certificate
     try:
-        with open(cache_path, "w") as f:
+        with open(os.open(cache_path, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600), "w") as f:
             json.dump(
                 {
                     "key_pem": private_key_pem.decode(),
