@@ -50,6 +50,13 @@ class TypesTest(TestCase):
             json.encode({"key2": "value2", "key1": "value1"}),
         )
 
+    def test_json_decode_error(self):
+        json = types.NormalizedJson()
+        with self.assertRaises(ValueError) as e:
+            json.decode("[1,2,3,]")
+
+        self.assertEqual(str(e.exception), "Error parsing JSON: Expecting value: line 1 column 8 (char 7)")
+
     def test_list_encode(self):
         list_type = types.List(types.Number())
 

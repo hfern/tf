@@ -91,7 +91,10 @@ class NormalizedJson(String):
         return json.dumps(value, sort_keys=True) if value not in (None, Unknown) else value
 
     def decode(self, value: Any) -> Any:
-        return json.loads(value) if value not in (None, Unknown) else value
+        try:
+            return json.loads(value) if value not in (None, Unknown) else value
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Error parsing JSON: {e}") from e
 
     def semantically_equal(self, a_decoded, b_decoded) -> bool:
         # This is hilariously inefficient but meh

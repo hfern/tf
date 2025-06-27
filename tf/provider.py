@@ -29,15 +29,34 @@ from tf.utils import Diagnostic, Diagnostics, _to_attribute_path, read_dynamic_v
 
 
 def _decode_state(
-    attrs: dict[str, Attribute], blocks: dict[str, NestedBlock], state: pb.DynamicValue | dict[str, Any]
+    diags: Diagnostics,
+    attrs: dict[str, Attribute],
+    blocks: dict[str, NestedBlock],
+    state: pb.DynamicValue | dict[str, Any],
 ) -> Tuple[Optional[dict], Optional[dict]]:
     st = read_dynamic_value(state) if isinstance(state, pb.DynamicValue) else state
 
     if st is None:
         return None, None
 
-    attr_state = {k: attrs[k].type.decode(v) if v is not Unknown else v for k, v in st.items() if k in attrs}
-    block_state = {k: blocks[k].decode(v) if v is not Unknown else v for k, v in st.items() if k in blocks}
+    def try_decode(field_name: str, decode_f, v: Any) -> Any:
+        try:
+            return decode_f(v)
+        except Exception as exc:
+            diags.add_error(
+                f"Failed to decode field '{field_name}'",
+                detail=f"Error decoding field '{field_name}': {exc}",
+                path=[field_name],
+            )
+
+            return Unknown
+
+    attr_state = {
+        k: try_decode(k, attrs[k].type.decode, v) if v is not Unknown else v for k, v in st.items() if k in attrs
+    }
+    block_state = {
+        k: try_decode(k, blocks[k].decode, v) if v is not Unknown else v for k, v in st.items() if k in blocks
+    }
 
     return st, {**attr_state, **block_state}
 
@@ -249,7 +268,10 @@ class ProviderServicer(rpc.ProviderServicer):
         type_name = request.type_name
         attrs = self._get_res_attrs(type_name)
         blocks = self._get_res_blocks(type_name)
-        current_enc, current_state = _decode_state(attrs, blocks, request.current_state)
+        current_enc, current_state = _decode_state(diags, attrs, blocks, request.current_state)
+
+        if diags.has_errors():
+            return pb.ReadResource.Response(diagnostics=diags.to_pb())
 
         if current_state is None:
             # I think this is not possible
@@ -272,16 +294,23 @@ class ProviderServicer(rpc.ProviderServicer):
     @_log_errors
     def PlanResourceChange(self, request: pb.PlanResourceChange.Request, context: grpc.ServicerContext):
         type_name = request.type_name
+        diags = Diagnostics()
+
         attrs = self._get_res_attrs(type_name)
         blocks = self._get_res_blocks(type_name)
-        _, prior_state = _decode_state(attrs, blocks, request.prior_state)
-        proposed_enc, proposed_new_state = _decode_state(attrs, blocks, request.proposed_new_state)
+        _, prior_state = _decode_state(diags, attrs, blocks, request.prior_state)
+        if diags.has_errors():
+            return pb.PlanResourceChange.Response(diagnostics=diags.to_pb())
+
+        proposed_enc, proposed_new_state = _decode_state(diags, attrs, blocks, request.proposed_new_state)
+        if diags.has_errors():
+            return pb.PlanResourceChange.Response(diagnostics=diags.to_pb())
+
         # config = read_dynamic_value(request.config)
         # prior_private = request.prior_private
 
         klass = self._get_res_cls(type_name)
         inst = self.app.new_resource(klass)
-        diags = Diagnostics()
 
         # We simplify the logic here. Instead of requiring each implementing resource to implement
         # plan_resource_change and apply_resource_change, we can figure
@@ -366,8 +395,13 @@ class ProviderServicer(rpc.ProviderServicer):
         attrs = self._get_res_attrs(type_name)
         blocks = self._get_res_blocks(type_name)
 
-        _, prior_state = _decode_state(attrs, blocks, request.prior_state)
-        planned_enc, planned_state = _decode_state(attrs, blocks, request.planned_state)
+        _, prior_state = _decode_state(diags, attrs, blocks, request.prior_state)
+        if diags.has_errors():
+            return pb.ApplyResourceChange.Response(diagnostics=diags.to_pb())
+
+        planned_enc, planned_state = _decode_state(diags, attrs, blocks, request.planned_state)
+        if diags.has_errors():
+            return pb.ApplyResourceChange.Response(diagnostics=diags.to_pb())
 
         klass = self._get_res_cls(type_name)
         inst = self.app.new_resource(klass)

@@ -1,6 +1,7 @@
 from typing import Any
 
 from tf.schema import Block, NestedBlock, NestMode
+from tf.utils import Diagnostics
 
 # class SingleNestedBlock(NestedBlock):
 #     def __init__(self, type_name: str, block: Block, required: Optional[bool] = False):
@@ -32,7 +33,11 @@ class SetNestedBlock(NestedBlock):
     def decode(self, value: Any) -> Any:
         from tf.provider import _decode_state
 
-        return [_decode_state(self._amap(), self._bmap(), v)[1] for v in value]
+        # TODO: This kind of sucks. Really we should probably take a diagnostics object,
+        # but consistency would require us to change all other .decode methods to do that.
+        # Maybe that's not such a bad idea?
+        diags = Diagnostics()
+        return [_decode_state(diags, self._amap(), self._bmap(), v)[1] for v in value]
 
     def semantically_equal(self, a_decoded, b_decoded) -> bool:
         # Since this is a set, we turn the block into a tuple

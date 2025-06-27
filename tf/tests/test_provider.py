@@ -835,6 +835,62 @@ class PlanResourceChangeTest(ProviderTestBase):
         new_state = read_dynamic_value(resp.planned_state)
         self.assertEqual([{"name": "a", "value": 1}], new_state["set_block"])
 
+    def test_existing_state_decode_error(self):
+        provider, servicer, ctx = self.provider_servicer_context()
+        resp = servicer.PlanResourceChange(
+            pb.PlanResourceChange.Request(
+                type_name="test_json",
+                prior_state=to_dynamic_value({"json": "not a valid json"}),
+                proposed_new_state=to_dynamic_value({"json": "1"}),
+                config=to_dynamic_value(None),
+                prior_private=b"",
+                provider_meta={},
+            ),
+            ctx,
+        )
+
+        self.assertEqual(
+            resp,
+            pb.PlanResourceChange.Response(
+                diagnostics=[
+                    pb.Diagnostic(
+                        severity=pb.Diagnostic.ERROR,
+                        summary="Failed to decode field 'json'",
+                        detail="Error decoding field 'json': Error parsing JSON: Expecting value: line 1 column 1 (char 0)",
+                        attribute=pb.AttributePath(steps=[pb.AttributePath.Step(attribute_name="json")]),
+                    ),
+                ],
+            ),
+        )
+
+    def test_new_state_decoding_error(self):
+        provider, servicer, ctx = self.provider_servicer_context()
+        resp = servicer.PlanResourceChange(
+            pb.PlanResourceChange.Request(
+                type_name="test_json",
+                prior_state=to_dynamic_value(None),
+                proposed_new_state=to_dynamic_value({"json": "not a valid json"}),
+                config=to_dynamic_value(None),
+                prior_private=b"",
+                provider_meta={},
+            ),
+            ctx,
+        )
+
+        self.assertEqual(
+            resp,
+            pb.PlanResourceChange.Response(
+                diagnostics=[
+                    pb.Diagnostic(
+                        severity=pb.Diagnostic.ERROR,
+                        summary="Failed to decode field 'json'",
+                        detail="Error decoding field 'json': Error parsing JSON: Expecting value: line 1 column 1 (char 0)",
+                        attribute=pb.AttributePath(steps=[pb.AttributePath.Step(attribute_name="json")]),
+                    ),
+                ],
+            ),
+        )
+
 
 class ApplyResourceChangeTest(ProviderTestBase):
     def test_create_happy(self):
@@ -1123,6 +1179,62 @@ class ApplyResourceChangeTest(ProviderTestBase):
         new_state = read_dynamic_value(resp.new_state)
         self.assertEqual(new_state["json"], '{     "weird whitespace": \n true}')
 
+    def test_existing_state_decode_error(self):
+        provider, servicer, ctx = self.provider_servicer_context()
+        resp = servicer.ApplyResourceChange(
+            pb.ApplyResourceChange.Request(
+                type_name="test_json",
+                prior_state=to_dynamic_value({"json": "not a valid json"}),
+                planned_state=to_dynamic_value({"json": "1"}),
+                config=to_dynamic_value(None),
+                planned_private=b"",
+                provider_meta={},
+            ),
+            ctx,
+        )
+
+        self.assertEqual(
+            resp,
+            pb.ApplyResourceChange.Response(
+                diagnostics=[
+                    pb.Diagnostic(
+                        severity=pb.Diagnostic.ERROR,
+                        summary="Failed to decode field 'json'",
+                        detail="Error decoding field 'json': Error parsing JSON: Expecting value: line 1 column 1 (char 0)",
+                        attribute=pb.AttributePath(steps=[pb.AttributePath.Step(attribute_name="json")]),
+                    ),
+                ],
+            ),
+        )
+
+    def test_new_state_decoding_error(self):
+        provider, servicer, ctx = self.provider_servicer_context()
+        resp = servicer.ApplyResourceChange(
+            pb.ApplyResourceChange.Request(
+                type_name="test_json",
+                prior_state=to_dynamic_value({"json": "1"}),
+                planned_state=to_dynamic_value({"json": "not valid json"}),
+                config=to_dynamic_value(None),
+                planned_private=b"",
+                provider_meta={},
+            ),
+            ctx,
+        )
+
+        self.assertEqual(
+            resp,
+            pb.ApplyResourceChange.Response(
+                diagnostics=[
+                    pb.Diagnostic(
+                        severity=pb.Diagnostic.ERROR,
+                        summary="Failed to decode field 'json'",
+                        detail="Error decoding field 'json': Error parsing JSON: Expecting value: line 1 column 1 (char 0)",
+                        attribute=pb.AttributePath(steps=[pb.AttributePath.Step(attribute_name="json")]),
+                    ),
+                ],
+            ),
+        )
+
 
 class ReadResourceTest(ProviderTestBase):
     def test_happy(self):
@@ -1245,6 +1357,32 @@ class ReadResourceTest(ProviderTestBase):
                 {"name": "b", "value": 2},
             ],
             new_state["set_block"],
+        )
+
+    def test_existing_state_undecodable(self):
+        """Verify error diagnostics when existing state has undecodable field"""
+        provider, servicer, ctx = self.provider_servicer_context()
+        resp = servicer.ReadResource(
+            pb.ReadResource.Request(
+                type_name="test_json",
+                current_state=to_dynamic_value({"json": "[1,]"}),
+                private=b"",
+                provider_meta={},
+            ),
+            ctx,
+        )
+        self.assertEqual(
+            resp,
+            pb.ReadResource.Response(
+                diagnostics=[
+                    pb.Diagnostic(
+                        severity=pb.Diagnostic.ERROR,
+                        summary="Failed to decode field 'json'",
+                        detail="Error decoding field 'json': Error parsing JSON: Expecting value: line 1 column 4 (char 3)",
+                        attribute=pb.AttributePath(steps=[pb.AttributePath.Step(attribute_name="json")]),
+                    )
+                ],
+            ),
         )
 
 
