@@ -26,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added comprehensive test coverage for all function-related functionality
   - Maintained 100% code coverage across the project
 
+- **Invalid Field Value Error Diagnostics**: An error diagnostic is now emitted when an invalid field value
+    is supplied (like invalid JSON to a json field). Previously, the plugin would crash.
+
 ### Changed
 
 - Updated `GetFunctions` test to reflect the new implementation (no longer returns "not implemented" warning)
