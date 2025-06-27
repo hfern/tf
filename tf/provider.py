@@ -222,7 +222,7 @@ class ProviderServicer(rpc.ProviderServicer):
             res_schema[type_name] = self._res_schema_cache[type_name]
 
         func_schemas = {name: klass.get_signature().to_pb() for name, klass in self._load_func_cls_map().items()}
-        
+
         # Create a proper provider_meta schema
         # This is an empty schema with an empty block - valid but with no attributes
         provider_meta = pb.Schema(
@@ -234,9 +234,9 @@ class ProviderServicer(rpc.ProviderServicer):
                 description="",
                 description_kind=pb.PLAIN,
                 deprecated=False,
-            )
+            ),
         )
-        
+
         resp = pb.GetProviderSchema.Response(
             provider=schema,
             provider_meta=provider_meta,
