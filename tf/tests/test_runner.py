@@ -303,6 +303,15 @@ class SSLCertificateCacheTest(TestCase):
         self.assertIsNotNone(server_creds)
         self.assertTrue(self.cache_path.exists())
 
+    def test_cert_cache_is_secure(self):
+        """Verify that the cached certificate is stored with limited permissions"""
+        self.assertFalse(self.cache_path.exists())
+        cert_chain, server_creds = runner._self_signed_cert()
+        self.assertTrue(self.cache_path.exists())
+        stat = self.cache_path.stat()
+        # Verify not world-readable or writable
+        self.assertEqual(stat.st_mode & 0o777, 0o600)
+
     def test_uses_cached_cert_when_valid(self):
         """Test that cached certificate is used when still valid"""
         # First call creates the cache
@@ -381,14 +390,14 @@ class SSLCertificateCacheTest(TestCase):
         # Make cache directory read-only
         self.cache_path.parent.mkdir(parents=True, exist_ok=True)
 
-        original_open = open
+        original_open = os.open
 
-        def mock_open(path, mode="r", *args, **kwargs):
-            if str(path) == str(self.cache_path) and "w" in mode:
+        def mock_open(path, mode, *args, **kwargs):
+            if str(path) == str(self.cache_path) and mode & os.O_WRONLY:
                 raise IOError("Permission denied")
             return original_open(path, mode, *args, **kwargs)
 
-        with mock.patch("builtins.open", side_effect=mock_open):
+        with mock.patch("os.open", side_effect=mock_open):
             # Should still generate certificate even if caching fails
             cert_chain, server_creds = runner._self_signed_cert()
 
