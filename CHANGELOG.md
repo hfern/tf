@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Descriptions and Deprecation Fields for Schemas and Blocks**:
+  - Added `description`, `description_kind`, and `deprecated` fields to Schema and Block. This allows resource, data sources, and providers to specify these fields for documentation.
+
 ## 1.1.0
 
 ### Added
