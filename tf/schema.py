@@ -85,7 +85,7 @@ class Attribute:
 
 class Schema:
     """
-    A schema is a description of the data model for a resource type.
+    A schema is a description of the data model for a resource/data source/provider.
 
     :param attributes: List of attributes
     :param version: Version of the schema
@@ -111,28 +111,55 @@ class Schema:
         attributes: Optional[list[Attribute]] = None,
         version: Optional[int] = None,
         block_types: Optional[list["NestedBlock"]] = None,
+        description: Optional[str] = None,
+        description_kind: Optional[TextFormat] = None,
+        deprecated: Optional[bool] = None,
     ):
         self.attributes = attributes or []
         self.version: Optional[int] = version
         self.block_types = block_types or []
+        self.description = description
+        self.description_kind = description_kind
+        self.deprecated = deprecated
 
     def to_pb(self) -> pb.Schema:
         more = {"version": self.version} if self.version is not None else {}
 
         return pb.Schema(
-            block=Block(attributes=self.attributes, block_types=self.block_types).to_pb(),
+            block=Block(
+                attributes=self.attributes,
+                block_types=self.block_types,
+                description=self.description,
+                description_kind=self.description_kind,
+                deprecated=self.deprecated,
+            ).to_pb(),
             **more,
         )
 
 
 class Block:
-    def __init__(self, attributes: Optional[list[Attribute]] = None, block_types: Optional[list["NestedBlock"]] = None):
+    def __init__(
+        self,
+        attributes: Optional[list[Attribute]] = None,
+        block_types: Optional[list["NestedBlock"]] = None,
+        description: Optional[str] = None,
+        description_kind: Optional[TextFormat] = None,
+        deprecated: Optional[bool] = None,
+    ):
         self.attributes = attributes or []
         self.block_types = block_types or []
+        self.description = description
+        self.description_kind = description_kind
+        self.deprecated = deprecated
 
     def to_pb(self) -> pb.Schema.Block:
         more = {
             "block_types": [nb.to_pb() for nb in self.block_types] or None,
+            "description": self.description,
+            "description_kind": _desc_format_map[self.description_kind]
+            if self.description_kind
+            else (_desc_format_map[TextFormat.Markdown] if self.description else None),
+            "deprecated": self.deprecated,
         }
 
         not_none = {k: v for k, v in more.items() if v is not None}
