@@ -11,7 +11,6 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -41,3 +40,36 @@ jobs:
     - name: Test Build
       run: |
         poetry build
+
+  test-e2e:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        python-version: ["3.13"]
+        tf-version:
+          - "opentofu@v1.10.5"
+          - "opentofu@v1.9.3"
+        e2e-project:
+          - "mathprovider"
+    needs: build
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+    - name: Install dependencies
+      working-directory: e2e/${{ matrix.e2e-project }}
+      run: |
+        poetry install
+    - name: Install ${{ matrix.tf-version }}
+      working-directory: e2e/${{ matrix.e2e-project }}
+      run: |
+        poetry run e2e-tool install ${{matrix.tf-version}}
+    - name: Run E2E Tests
+      working-directory: e2e/${{ matrix.e2e-project }}
+      run: |
+        poetry run e2e-tool run --tf ${{matrix.tf-version}}

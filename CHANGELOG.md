@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Descriptions and Deprecation Fields for Schemas and Blocks**:
   - Added `description`, `description_kind`, and `deprecated` fields to Schema and Block. This allows resource, data sources, and providers to specify these fields for documentation.
+- **End-to-End Tests**:
+  - Added comprehensive end-to-end tests against OpenTofu. This ensures that providers, resources, and data sources work correctly against the real OpenTofu CLI.
 
 ## 1.1.0
 
