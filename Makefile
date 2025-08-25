@@ -8,12 +8,12 @@ prepare-venv:
 
 format:
 	# Format and sort imports with ruff
-	$(HIDE)$(POETRY) run ruff format $(MODULE)
-	$(HIDE)$(POETRY) run ruff check --fix $(MODULE)
+	$(HIDE)$(POETRY) run ruff format $(MODULE) e2e
+	$(HIDE)$(POETRY) run ruff check --fix $(MODULE) e2e
 
 test-format:
-	$(HIDE)$(POETRY) run ruff format $(MODULE) --check
-	$(HIDE)$(POETRY) run ruff check $(MODULE)
+	$(HIDE)$(POETRY) run ruff format $(MODULE) e2e --check
+	$(HIDE)$(POETRY) run ruff check $(MODULE) e2e
 
 update-tfplugin-proto:
 	$(HIDE)curl https://raw.githubusercontent.com/opentofu/opentofu/main/docs/plugin-protocol/$(TFPLUGIN_PROTO) > tfplugin.proto
