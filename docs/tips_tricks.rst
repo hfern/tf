@@ -9,7 +9,7 @@ You pre-emptively launch your provider in a long-lived server mode by running ``
 This will start the provider, dump a ``export TF_REATTACH_PROVIDERS=...`` command, and wait for connections.
 
 In another terminal, you can paste and execute the ``export TF_REATTACH_PROVIDERS=...`` command to set up your environment.
-Then you can run ``tofurce plan`` or ``terraform apply`` as usual.
+Then you can run ``tofu plan`` or ``terraform apply`` as usual.
 
 Tofu will connect to the already-running provider instead of starting it on-demand.
 By launching your provider with ``--stable --dev`` in your debugger, you can set breakpoints and inspect state as needed.
@@ -54,7 +54,7 @@ Roughly, the steps to build a pex binary are:
         --scie eager \
         -m providerpackage.main:main
 
-   By using ```--scie eager```, pex will include a Python interpreter in the binary as well as all the dependencies.
+   By using ``--scie eager``, pex will include a Python interpreter in the binary as well as all the dependencies.
    This means everything needs to run the provider is contained in the single binary file.
 
 You will now have a binary executable named ``terraform-provider-$providername`` that you can upload to your registry and use with Terraform.
