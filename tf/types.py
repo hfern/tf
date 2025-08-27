@@ -185,5 +185,8 @@ class _Unknown:
         return self
 
 
-# Unknown is a meta type that can be used to represent an unknown value in a state plan
 Unknown = _Unknown()
+"""
+Unknown is a sentinel value that represents a value that is not yet known.
+You will find these in a state plan.
+"""

@@ -21,15 +21,17 @@ The biggest problem is that Terraform **expects the provider to be a single bina
 You need to get your entire artifact into one executable file that you can move to someone else's machine.
 This is VERY at odds with the default Python experience.
 
-To get around this, you can use something like [Nuitka](https://nuitka.net/) to compile your Python code into a single binary with `--onefile` and `--standalone`.
-This is very fickle, and you need to consider:
+To get around this, you can use something like [Pex](https://docs.pex-tool.org/) to generate a single binary.
+While this works for simple (pure Python) packages, you need to consider:
 
 * How many OS/Architecture combinations do you need to support?
-* How old of a version of GLIBC are you are targeting? You might want to run nuitka in docker container for an older distro.
+* How old of a version of GLIBC are you are targeting? Prepare to bake pre-prepared `--complete-platform` configuration sets for every combination you want to support.
 * Do any of your dependencies have C extensions? Or do dynamic linking?
-  This might be a dealbreaker -- you can't install these on the fly.
+  This might be a dealbreaker.
 
-With a lot of project-specific configuration, you can get this working and building a single `main.bin`. But YMMV.
+With a lot of project-specific configuration, you can get this working and building a single `terraform-provider-$providername`. But YMMV.
+
+See [Building a Binary](tips_tricks.html#building-a-binary) for some tips and tricks to get this working.
 
 #### Development mode already works, why not use that?
 

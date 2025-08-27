@@ -8,21 +8,22 @@ from tf.utils import Diagnostics
 if TYPE_CHECKING:  # pragma: no cover
     from tf.function import Function
 
+
+State: TypeAlias = dict
 """
 State is the current state of a resource.
 It is a dictionary where field names are mapped to Python values (or None, or Unknown).
 Resource operations are mostly just pushing around, mutating, and returning State.
 """
-State: TypeAlias = dict
 
 
+Config: TypeAlias = dict
 """
 Config is like State, except its used in configuration validation and the values are null when
 they are not bound to a value.
 This is because the configuration is not yet bound to a resource.
 This is merely for validating that set of input parameters or values are correct.
 """
-Config: TypeAlias = dict
 
 
 class AbstractResource(Protocol):
