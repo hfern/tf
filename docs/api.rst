@@ -4,22 +4,37 @@ Stable API
 
 .. py:module:: tf
 
+:code:`tf`'s API consists of:
+
+* Low-level protocol classes that library consumers are expected to implement (such as :class:`~tf.iface.Provider`, :class:`~tf.iface.Resource`, and :class:`~tf.iface.DataSource`).
+* Mid-level "glue" for schema definitions, such as :class:`~tf.schema.Attribute` and :class:`~tf.schema.Schema`.
+* High-level commonly-used types such as :class:`~tf.types.String`, and :class:`~tf.types.List`.
+* A handful of utility functions and classes, such as :func:`~tf.runner.run_provider` and :class:`~tf.runner.install_provider`.
+
+As a library consumer and provider author, your primary interaction will be writing classes that satisfy :class:`~tf.iface.Provider`, :class:`~tf.iface.Resource`, and :class:`~tf.iface.DataSource`.
+If your provider has a large number of elements, you will likely want to implement your own higher-level abstractions to stamp out boilerplate class definitions.
+Protocols give you the flexibility to do this in a clean way.
+
+However, it's perfectly fine (if somewhat tedious) to implement each element against it's protocol individually.
+
 Execution Interface
 ===================
 
 The execution interface provides program entrypoints for OpenTofu to run your provider.
 
+You provider should have a `Console Script <https://setuptools.pypa.io/en/latest/userguide/entry_point.html#console-scripts>`_ entrypoint (named :code:`terraform-provider-myprovider`) pointing to your main function.
+Your main function should create an instance of your provider and call :func:`~tf.runner.run_provider`.
 
 .. autofunction:: tf.runner.run_provider
 
-An installation utility is provided to install your provider.
+An installation utility is provided to install your provider into the plugins directory.
+
+.. warning::
+    Running :func:`~tf.runner.install_provider`. is only required if you want to install your provider *in development mode* into your plugin directory.
+    There are easier ways to test your provider during development, such as setting the :code:`TF_CLI_CONFIG_FILE`.
 
 .. autofunction:: tf.runner.install_provider
 
-You are expected to provide a `main.py` file in your provider package with a method
-(set as an entrypoint)
-that calls
-:func:`~tf.runner.run_provider` and :func:`~tf.runner.install_provider`.
 
 Provider Interface
 ==================
@@ -77,6 +92,14 @@ It is a dictionary of field names to values.
    :members:
 
 
+Config
+------
+
+*Config* is used instead of State during validation.
+
+.. autoclass:: tf.iface.Config
+   :members:
+
 Schemas
 ============
 
@@ -124,3 +147,13 @@ Several utility types are also provided:
 .. autoclass:: tf.types.NormalizedJson
    :show-inheritance:
 
+
+Unknown
+-------
+:class:`~tf.types.Unknown` is a special `value` that represents a value that is not known at plan time.
+Unknown is a fundamental part of TF's design and is used extensively in the planning phase.
+
+TF makes a distinction between `null` and `unknown`. :code:`tf` represents them with :code:`None` and :code:`tf.types.Unknown` respectively.
+
+.. autoclass:: tf.types.Unknown
+   :members:
