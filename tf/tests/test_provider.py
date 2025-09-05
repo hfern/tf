@@ -58,7 +58,7 @@ class ExampleProvider(p.Provider):
         return [FavoriteNumberDataSource, FavoriteNumberErrorsDataSource]
 
     def get_resources(self) -> list[Type[Resource]]:
-        return [ExampleMathResource, ErrorsAlotResource, JsonResource]
+        return [ExampleMathResource, ErrorsAlotResource, JsonResource, ComplexResource]
 
 
 class ExampleMathResource(p.Resource):
@@ -175,6 +175,58 @@ class JsonResource(p.Resource):
 
     def delete(self, ctx: DeleteContext, current: State):
         return
+
+
+class CustomTypeStrictSet(types.Set):
+    """A type of set for testing that will fail if Unknown is passed to semantically_equal"""
+
+    def semantically_equal(self, a_decoded, b_decoded) -> bool:
+        self.on_check_semantic_equality(a_decoded, b_decoded)
+
+        if a_decoded is Unknown or b_decoded is Unknown:
+            raise ValueError("Wow this should never have been called!!")
+
+        return super().semantically_equal(a_decoded, b_decoded)
+
+    @classmethod
+    def on_check_semantic_equality(cls, a, b):
+        pass
+
+
+class ComplexResource(p.Resource):
+    """A resource with a set attribute: a complex type that requires special handling"""
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "complex"
+
+    @classmethod
+    def get_schema(cls) -> schema.Schema:
+        return schema.Schema(
+            version=2,
+            attributes=[
+                schema.Attribute("favorite_numbers", CustomTypeStrictSet(types.Number()), computed=True),
+            ],
+        )
+
+    def __init__(self, *args):
+        pass
+
+    def create(self, ctx: CreateContext, planned: State) -> Optional[State]:
+        return {
+            "favorite_numbers": [9, 8, 7],
+        }
+
+    def read(self, ctx: ReadContext, current: State) -> Optional[State]:
+        return {
+            "favorite_numbers": [9, 8, 7],
+        }
+
+    def update(self, ctx: UpdateContext, current: State, planned: State) -> Optional[State]:
+        return {"favorite_numbers": list(reversed(planned["favorite_numbers"]))}  # sets can be any order :)
+
+    def delete(self, ctx: DeleteContext, current: State):
+        return None
 
 
 class FavoriteNumberDataSource(p.DataSource):
@@ -491,6 +543,14 @@ class GetProviderSchemaTest(ProviderTestBase):
                     block=pb.Schema.Block(
                         attributes=[
                             pb.Schema.Attribute(name="json", type=b'"string"', required=True, **md),
+                        ]
+                    ),
+                ),
+                "test_complex": pb.Schema(
+                    version=2,
+                    block=pb.Schema.Block(
+                        attributes=[
+                            pb.Schema.Attribute(name="favorite_numbers", type=b'["set","number"]', computed=True, **md),
                         ]
                     ),
                 ),
@@ -986,6 +1046,55 @@ class ApplyResourceChangeTest(ProviderTestBase):
         self.assertEqual(
             mock_create.call_args.args[1],
             {"set_block": [{"name": "a", "value": 1}, {"name": "b", "value": 2}]},
+        )
+
+    def test_create_complex_types_planned_unknown(self):
+        """Verify complex fields can be created when their planned value is Unknown (computed)"""
+        provider, service, ctx = self.provider_servicer_context()
+        request = pb.ApplyResourceChange.Request(
+            type_name="test_complex",
+            prior_state=to_dynamic_value(None),
+            planned_state=to_dynamic_value({"favorite_numbers": Unknown}),
+            config=to_dynamic_value({"favorite_numbers": None}),
+            planned_private=b"",
+            provider_meta={},
+        )
+
+        with mock.patch.object(CustomTypeStrictSet, "on_check_semantic_equality") as check_sem_eq:
+            resp = service.ApplyResourceChange(request, ctx)
+
+        self.assert_no_diagnostic_errors(resp)
+        new_state = read_dynamic_value(resp.new_state)
+        self.assertEqual({7, 8, 9}, set(new_state["favorite_numbers"]))
+
+        # There was no reason to call compare semantic equality, as there was a Unknown in the plan.
+        # (And even if we do later, NONE of the calls should have Unknown in them)
+        check_sem_eq.assert_not_called()
+
+    @patch("sys.stderr", new_callable=StringIO)
+    def test_wrap_encoding_errors(self, stderr_mock):
+        """Verify exceptions raised during encoding reveal which field caused it"""
+        # This is a catastrophic error that should never happen, but if it does we'd like some breadcrumbs
+        provider, servicer, ctx = self.provider_servicer_context()
+
+        request = pb.ApplyResourceChange.Request(
+            type_name="test_complex",
+            prior_state=to_dynamic_value(None),
+            planned_state=to_dynamic_value({"favorite_numbers": Unknown}),
+            config=to_dynamic_value({"favorite_numbers": Unknown}),
+            planned_private=b"",
+            provider_meta={},
+        )
+
+        with mock.patch.object(CustomTypeStrictSet, "encode") as mock_encode:
+            mock_encode.side_effect = ValueError("Something bad happened during encoding!")
+
+            with self.assertRaises(p.EncodeError) as raised:
+                servicer.ApplyResourceChange(request, ctx)
+
+        self.assertIn(
+            "Failed to encode field 'favorite_numbers': ValueError: Something bad happened during encoding!",
+            str(raised.exception),
         )
 
     def test_update_nested_block_unchanged_set_comparison(self):

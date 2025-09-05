@@ -76,31 +76,39 @@ def _encode_state_d(
     encoded = {}
 
     for k, v in state.items():
-        if v is Unknown:
-            encoded[k] = Unknown
-        elif k in attrs:
-            # Check if we can reuse the old encoded value
-            if old and k in old:
-                # For simple types, compare encoded values directly
-                if attrs[k].type.__class__.__name__ in ("Number", "String", "Bool"):
-                    new_encoded = attrs[k].type.encode(v)
-                    if old[k] == new_encoded:
+        try:
+            if v is Unknown:
+                encoded[k] = Unknown
+            elif k in attrs:
+                # Check if we can reuse the old encoded value
+                if old and k in old:
+                    # For simple types, compare encoded values directly
+                    if attrs[k].type.__class__.__name__ in ("Number", "String", "Bool"):
+                        new_encoded = attrs[k].type.encode(v)
+                        if old[k] == new_encoded:
+                            encoded[k] = old[k]
+                        else:
+                            encoded[k] = new_encoded
+
+                    # If the previous value was Unknown and the new one is not, we just accept the new one
+                    elif old[k] is Unknown:
+                        encoded[k] = attrs[k].type.encode(v)
+
+                    # For complex types, use semantic equality
+                    elif attrs[k].type.semantically_equal(attrs[k].type.decode(old[k]), v):
                         encoded[k] = old[k]
                     else:
-                        encoded[k] = new_encoded
-                # For complex types, use semantic equality
-                elif attrs[k].type.semantically_equal(attrs[k].type.decode(old[k]), v):
-                    encoded[k] = old[k]
+                        encoded[k] = attrs[k].type.encode(v)
                 else:
                     encoded[k] = attrs[k].type.encode(v)
             else:
-                encoded[k] = attrs[k].type.encode(v)
-        else:
-            # block
-            if old and k in old and blocks[k].semantically_equal(blocks[k].decode(old[k]), v):
-                encoded[k] = old[k]
-            else:
-                encoded[k] = blocks[k].encode(v)
+                # block
+                if old and k in old and blocks[k].semantically_equal(blocks[k].decode(old[k]), v):
+                    encoded[k] = old[k]
+                else:
+                    encoded[k] = blocks[k].encode(v)
+        except Exception as exc:
+            raise EncodeError(f"Failed to encode field '{k}': {type(exc).__name__}: {exc}") from exc
 
     return encoded
 
@@ -473,7 +481,10 @@ class ProviderServicer(rpc.ProviderServicer):
             planned_state = cast(dict, planned_state)
             new_state = inst.update(UpdateContext(diags, type_name), prior_state, planned_state)
 
-        # We use the planned value if its not semantically different to the new state
+        # We use the planned field values if they are semantically equivalent to the new state.
+        # For most fields on update and create, the TF client will have already done the hard work
+        # of encoding the field values to provide the planned state.
+        # We can skip re-encoding them if they semantically match what we got back from the resource.
         encoded_state = _encode_state(attrs, blocks, new_state, old=planned_enc)
 
         return pb.ApplyResourceChange.Response(
@@ -599,3 +610,7 @@ class ProviderServicer(rpc.ProviderServicer):
         # Return empty response to acknowledge shutdown request
         # The actual shutdown is handled by the interceptor and server loop
         return pb.StopProvider.Response()
+
+
+class EncodeError(Exception):
+    pass
