@@ -89,3 +89,21 @@ class DataSourceTest(ProviderTest):
                 "The 'divisor' attribute cannot be zero.",
             ],
         )
+
+    def test_apply_for_each(self):
+        result = self.tf_apply(
+            """\
+            data "math_div" "test" {
+                for_each = toset(["2", "5", "10"])
+                
+                dividend = 20
+                divisor  = tonumber(each.value)
+            }
+
+            output "the_sum" {
+                value = sum([for d in data.math_div.test : d.quotient])
+            }
+            """,
+            expect_error=False,
+        )
+        self.assertIn("the_sum = 16", result.stdout)

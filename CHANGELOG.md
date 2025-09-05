@@ -14,6 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added comprehensive end-to-end tests against OpenTofu. This ensures that providers, resources, and data sources work correctly against the real OpenTofu CLI.
 - **Tutorial**:
   - Added a tutorial to the documentation to help new users get started with writing a provider using `tf`.
+- **Field Names for Encoding Errors**:
+  - Field names are now printed in rare cases where field values first pass validation/decoding,
+        but later catastrophically fail to encode or semantically compare.
+        These cases are generally bugs in `tf` itself, but the field names help identify the problematic fields.
+
+### Fixed
+- **Set Crashes**:
+  - Fixed crashes when using `Set` types without either provided or default values.
+        This fixes the general case for complex types with custom semantic equality functions (only `Set` currently).
 
 ### Fixed
 
