@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Tutorial**:
   - Added a tutorial to the documentation to help new users get started with writing a provider using `tf`.
 
+### Fixed
+
+- Fixed the gRPC server self-signed certificate being generated with `not_valid_before` in the future
+  - This was caused by generating a `datetime` in the local timezone, but `x509` treating it as UTC
+
 ## 1.1.0
 
 ### Added
