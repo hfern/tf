@@ -238,7 +238,7 @@ def _self_signed_cert() -> Tuple[bytes, Any]:
     )
 
     name = x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, "localhost")])
-    now = datetime.now()
+    now = datetime.now(tz.utc)
 
     # With subject alternative names
     certificate = (
