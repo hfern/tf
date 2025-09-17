@@ -13,8 +13,6 @@ _It's an uphill battle to get a Python provider into production._
 If you want to write a provider in Python for production use, you will have to overcome these hurdles.
 It's doable, but **outside of scope of this package and you're on your own.**
 
-You should very strongly consider only using this package for development, testing, and proof-of-concept work.
-
 #### What's the big problem?
 
 The biggest problem is that Terraform **expects the provider to be a single binary**.
@@ -80,7 +78,7 @@ This is a huge pain and an accident waiting to happen.
 Once you have single binaries ready for each OS/Arch, you need to generate hash sums, sign them, and generate a manifest.
 In theory, the official HashiCorp registry will allow you to upload these binaries and metadata using the standard Github release workflow.
 
-However, I would strongly consider using a private registry or a different distribution method.
+However, you should strongly consider using a private registry or a different distribution method.
 HashiCorp will almost certainly not officially approve and verify your provider for [the integration program](https://developer.hashicorp.com/terraform/docs/partnerships).
 
 You will have to set that up yourself.

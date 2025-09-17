@@ -5,8 +5,8 @@ Tips and Tricks
 Using a Debugger
 ================
 
-You pre-emptively launch your provider in a long-lived server mode by running ``terraform-provider-$providername --stable --dev`` in a terminal.
-This will start the provider, dump a ``export TF_REATTACH_PROVIDERS=...`` command, and wait for connections.
+To use a debugger, you must pre-emptively launch your provider in long-lived server mode by running ``terraform-provider-$providername --stable --dev`` in a terminal.
+This will start the provider, dump an ``export TF_REATTACH_PROVIDERS=...`` command, and wait for connections.
 
 In another terminal, you can paste and execute the ``export TF_REATTACH_PROVIDERS=...`` command to set up your environment.
 Then you can run ``tofu plan`` or ``terraform apply`` as usual.
@@ -35,7 +35,7 @@ The provider upload registry APIs are not standardized across hosting providers,
 
 Roughly, the steps to build a pex binary are:
 
-#. Install pex: `pip install pex`, preferably into a separate virtual environment or as a development dependency of your provider project.
+#. Install pex: ``pip install pex``, preferably into a separate virtual environment or as a development dependency of your provider project.
 #. Dump the dependencies of your provider into a requirements file:
 
    .. code-block:: shell

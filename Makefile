@@ -2,18 +2,19 @@ HIDE := @
 TFPLUGIN_PROTO := tfplugin6.5.proto
 POETRY := poetry
 MODULE := tf
+FORMATTABLE_SOURCES := $(MODULE) e2e docs/examples
 
 prepare-venv:
 	$(HIDE)$(POETRY) install
 
 format:
 	# Format and sort imports with ruff
-	$(HIDE)$(POETRY) run ruff format $(MODULE) e2e
-	$(HIDE)$(POETRY) run ruff check --fix $(MODULE) e2e
+	$(HIDE)$(POETRY) run ruff format $(FORMATTABLE_SOURCES)
+	$(HIDE)$(POETRY) run ruff check --fix $(FORMATTABLE_SOURCES)
 
 test-format:
-	$(HIDE)$(POETRY) run ruff format $(MODULE) e2e --check
-	$(HIDE)$(POETRY) run ruff check $(MODULE) e2e
+	$(HIDE)$(POETRY) run ruff format $(FORMATTABLE_SOURCES) --check
+	$(HIDE)$(POETRY) run ruff check $(FORMATTABLE_SOURCES)
 
 update-tfplugin-proto:
 	$(HIDE)curl https://raw.githubusercontent.com/opentofu/opentofu/main/docs/plugin-protocol/$(TFPLUGIN_PROTO) > tfplugin.proto
