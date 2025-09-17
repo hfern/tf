@@ -197,6 +197,8 @@ def _get_cert_cache_path() -> Path:
 def _self_signed_cert() -> Tuple[bytes, Any]:
     """Generate or load cached keypair and cert, return a server credentials object"""
     # Lazy load expensive cryptography imports
+    from datetime import timezone
+
     import grpc
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
@@ -213,10 +215,8 @@ def _self_signed_cert() -> Tuple[bytes, Any]:
             # Check if certificate is still valid
             cert_pem = cached["cert_pem"].encode()
             cert = x509.load_pem_x509_certificate(cert_pem)
-            # Compare UTC times
-            from datetime import timezone as tz
 
-            if cert.not_valid_after_utc > datetime.now(tz.utc):
+            if cert.not_valid_after_utc > datetime.now(timezone.utc):
                 # Certificate is still valid, use cached version
                 private_key_pem = cached["key_pem"].encode()
                 cert_chain = base64.b64decode(cached["cert_chain"])
@@ -238,7 +238,7 @@ def _self_signed_cert() -> Tuple[bytes, Any]:
     )
 
     name = x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, "localhost")])
-    now = datetime.now(tz.utc)
+    now = datetime.now(timezone.utc)
 
     # With subject alternative names
     certificate = (
