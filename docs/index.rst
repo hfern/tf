@@ -9,6 +9,7 @@
     functions.md
     api.rst
     tutorial.rst
+    testing.rst
     example.md
     caveats.md
     tips_tricks.rst

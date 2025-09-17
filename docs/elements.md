@@ -8,7 +8,7 @@ At a high level:
 * An _Element_ is either a [`DataSource`](api.html#data-sources) or a [`Resource`](api.html#resources).
 * An _Element_ has a _Schema_ that defines the attributes and blocks that it exposes to the user.
 * An _Attribute_ is a field name, a Type, and a set of behaviors.
-* A _Type_ is a Python type that maps to a TF type.
+* A _Type_ is a Python class that can convert between Python and TF representations of the underlying data type.
 
 ## Types
 
@@ -73,13 +73,16 @@ A schema is a versioned collection of attributes and blocks that the element exp
 
 ## Errors
 
-All errors are reporting using `Diagnostics`.
+All errors are reported using `Diagnostics`.
 This parameter is passed into most operations, and you can
 add warnings or errors.
 
 Be aware: Operations that add error diagnostics will be considered
 failed by Terraform.  Warnings are not, however.
 
-You can add path information to your diagnostics.
+
+You may optionally add path information to your diagnostics.
 This allows TF to display which specific field led to the error.
 It's very helpful to the user.
+
+.. literalinclude:: examples/datasource-dns.py

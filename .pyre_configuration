@@ -8,6 +8,7 @@
     "./e2e/mathprovider"
   ],
   "ignore_all_errors": [
-    "tf/gen/*"
+    "tf/gen/*",
+    "docs/examples/*"
   ]
 }
