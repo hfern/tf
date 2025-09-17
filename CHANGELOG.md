@@ -23,11 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Set Crashes**:
   - Fixed crashes when using `Set` types without either provided or default values.
         This fixes the general case for complex types with custom semantic equality functions (only `Set` currently).
-
-### Fixed
-
-- Fixed the gRPC server self-signed certificate being generated with `not_valid_before` in the future
-  - This was caused by generating a `datetime` in the local timezone, but `x509` treating it as UTC
+- **Certificate Generation Failure**:
+  - Fixed certificate generation failure on systems with a positive UTC offset (e.g. UTC+2).
 
 ## 1.1.0
 
