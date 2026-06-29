@@ -117,12 +117,24 @@ def run_provider(provider: Provider, argv: Optional[list[str]] = None):
     stdio_rpc.add_GRPCStdioServicer_to_server(GRPCStdioServicer(), server)
 
     with tempfile.TemporaryDirectory() as tmp:
-        sock_file = f"{tmp}/py-tf-plugin.sock" if "--stable" not in argv else "/tmp/py-tf-plugin.sock"
-        tx = f"unix://{sock_file}"
+        # Windows does not support unix domain sockets in gRPC, fall back to TCP loopback.
+        use_tcp = sys.platform == "win32"
+
+        if use_tcp:
+            network = "tcp"
+            tx = "127.0.0.1:0"
+            addr_string = None  # Set after binding to known port
+        else:
+            network = "unix"
+            sock_file = f"{tmp}/py-tf-plugin.sock" if "--stable" not in argv else "/tmp/py-tf-plugin.sock"
+            tx = f"unix://{sock_file}"
+            addr_string = sock_file
 
         if "--dev" in argv:
             print("Running in dev mode\n")
-            server.add_insecure_port(tx)
+            bound_port = server.add_insecure_port(tx)
+            if use_tcp:
+                addr_string = f"127.0.0.1:{bound_port}"
             conf = json.dumps(
                 {
                     provider.full_name(): {
@@ -131,8 +143,8 @@ def run_provider(provider: Provider, argv: Optional[list[str]] = None):
                         "Pid": os.getpid(),
                         "Test": True,
                         "Addr": {
-                            "Network": "unix",
-                            "String": sock_file,
+                            "Network": network,
+                            "String": addr_string,
                         },
                     },
                 }
@@ -151,7 +163,9 @@ def run_provider(provider: Provider, argv: Optional[list[str]] = None):
             ssl_time = time.time() - ssl_start
             print(f"[TIMING] SSL cert time: {ssl_time*1000:.2f}ms", file=sys.stderr)
 
-        server.add_secure_port(tx, server_ssl_config)
+        bound_port = server.add_secure_port(tx, server_ssl_config)
+        if use_tcp:
+            addr_string = f"127.0.0.1:{bound_port}"
 
         server.start()
 
@@ -164,8 +178,8 @@ def run_provider(provider: Provider, argv: Optional[list[str]] = None):
                 [
                     str(1),  # protocol version
                     str(6),  # tf protocol version
-                    "unix",  # "tcp",
-                    sock_file,  # picked_addr,
+                    network,
+                    addr_string,
                     "grpc",
                     base64.b64encode(server_chain).decode().rstrip("="),
                 ]
